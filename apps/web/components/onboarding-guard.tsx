@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApiClient } from "@/lib/api";
-import { checkOnboardingStatus } from "@/lib/onboarding";
 import { Loader2 } from "lucide-react";
 
 interface OnboardingGuardProps {
@@ -13,9 +12,6 @@ interface OnboardingGuardProps {
 
 /**
  * OnboardingGuard - Ensures user has completed onboarding before accessing protected routes
- *
- * @param requiresOnboarding - If true, redirects users who HAVE completed onboarding to dashboard
- *                            If false, redirects users who HAVEN'T completed onboarding to onboarding flow
  */
 export function OnboardingGuard({
   children,
@@ -32,20 +28,31 @@ export function OnboardingGuard({
 
     const checkStatus = async () => {
       try {
-        const status = await checkOnboardingStatus(api);
+        // Sync user from Clerk
+        try {
+          await api.post('/api/organizations/sync-user');
+        } catch (syncErr) {
+          console.warn('User sync warning:', syncErr);
+        }
+
+        // Check if user has organization
+        const orgsResponse = await api.get('/api/organizations');
+        const organizations = orgsResponse.data.organizations || [];
+        
+        const needsOnboarding = organizations.length === 0;
 
         if (requiresOnboarding) {
           // This is an onboarding page - if they've completed onboarding, redirect to dashboard
-          if (!status.needsOnboarding) {
+          if (!needsOnboarding) {
             setHasChecked(true);
             router.replace("/dashboard");
             return;
           }
         } else {
           // This is a protected page - if they need onboarding, redirect to onboarding flow
-          if (status.needsOnboarding && status.redirectTo) {
+          if (needsOnboarding) {
             setHasChecked(true);
-            router.replace(status.redirectTo);
+            router.replace("/onboarding/organization");
             return;
           }
         }
@@ -54,8 +61,7 @@ export function OnboardingGuard({
         setHasChecked(true);
       } catch (error) {
         console.error("Onboarding check failed:", error);
-        // On error (like user not found in DB), just show the page
-        // Don't redirect or we'll get stuck in a loop
+        // On error, just show the page to avoid infinite loops
         setIsChecking(false);
         setHasChecked(true);
       }

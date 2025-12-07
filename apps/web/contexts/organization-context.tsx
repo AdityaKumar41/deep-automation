@@ -45,29 +45,36 @@ export function OrganizationProvider({
       return await api.getOrganizations();
     },
     enabled: isLoaded && isSignedIn,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 0, // Always fetch fresh data
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
 
-  // Set initial organization
-  useEffect(() =>{
-    if (organizations.length > 0) {
-      // Always try to recover from local storage first
+  // Set initial organization - prioritize localStorage, then first org
+  useEffect(() => {
+    if (!isLoading && organizations.length > 0) {
+      // Check localStorage for saved org
       const savedOrgId = localStorage.getItem("currentOrganizationId");
       
       if (savedOrgId) {
+        // Find saved org in current organizations list
         const savedOrg = organizations.find((o) => o.id === savedOrgId);
-        if (savedOrg && savedOrg.id !== currentOrganization?.id) {
+        if (savedOrg && (!currentOrganization || currentOrganization.id !== savedOrgId)) {
           setCurrentOrganization(savedOrg);
+          return;
         }
-      } else if (!currentOrganization) {
-        // Only set first org if no saved org and no current org
+      }
+      
+      // No saved org or not found, use first org
+      if (!currentOrganization) {
         setCurrentOrganization(organizations[0]);
         localStorage.setItem("currentOrganizationId", organizations[0].id);
       }
-    } else if (organizations.length === 0 && !isLoading) {
-       setCurrentOrganization(null);
+    } else if (!isLoading && organizations.length === 0) {
+      setCurrentOrganization(null);
+      localStorage.removeItem("currentOrganizationId");
     }
-  }, [organizations, isLoading]); // Remove currentOrganization from deps
+  }, [organizations, isLoading]);
 
   const setOrganization = useCallback((org: Organization) => {
     setCurrentOrganization(org);
@@ -78,16 +85,15 @@ export function OrganizationProvider({
     await refetch();
   }, [refetch]);
 
-   // Listen for organization creation to switch to it automatically if needed or just validation
-   useEffect(() => {
-        if(organizations.length > 0 && currentOrganization) {
-            const exists = organizations.find(o => o.id === currentOrganization.id)
-            if(!exists) {
-                // If the current organization was removed or lost access, switch to the first one
-                setOrganization(organizations[0]);
-            }
-        }
-   }, [organizations, currentOrganization, setOrganization])
+  // Validate current org still exists in the list
+  useEffect(() => {
+    if (currentOrganization && organizations.length > 0) {
+      const exists = organizations.find(o => o.id === currentOrganization.id);
+      if (!exists) {
+        setOrganization(organizations[0]);
+      }
+    }
+  }, [organizations, currentOrganization, setOrganization]);
 
 
   return (

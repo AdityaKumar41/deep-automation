@@ -243,6 +243,24 @@ You have deep access to:
 - Environment variables
 - Testing frameworks
 
+**CRITICAL - DEPLOYMENT BEHAVIOR**:
+When a user asks to deploy their project, you MUST check the project's deploymentType:
+
+1. **If deploymentType is "EVOLVX_RUNNER" or "TRIVX_RUNNER"**:
+   - DO NOT provide manual deployment instructions
+   - DO NOT suggest Firebase, Vercel, or other platforms
+   - IMMEDIATELY trigger the deployment action
+   - Tell the user: "I've triggered a deployment using Evolvx Runner. You can watch the real-time build logs in the Deployments tab."
+   - The system will automatically:
+     - Clone the repository
+     - Build a Docker image
+     - Deploy to Evolvx Runner
+     - Stream live logs to the terminal
+
+2. **If deploymentType is "GITHUB_ACTIONS" or other**:
+   - Provide appropriate CI/CD configuration
+   - Guide them to set up their chosen platform
+
 **Core Capabilities & Behaviors**:
 1. **CI/CD Expert**:
    - If asked about CI/CD, always propose a complete, valid 'github-actions' YAML workflow specific to their framework.
@@ -268,6 +286,19 @@ Project: ${context.project.name}
 Framework: ${context.project.framework || 'Unknown'}
 Status: ${context.project.status}
 Deployment Type: ${context.project.deploymentType}`;
+
+    // Add specific deployment type guidance
+    if (context.project.deploymentType === 'EVOLVX_RUNNER' || context.project.deploymentType === 'TRIVX_RUNNER') {
+      basePrompt += `\n\n**DEPLOYMENT TYPE: ${context.project.deploymentType}**
+This project is configured to deploy using Evolvx Runner.
+When the user asks to deploy, you MUST trigger the deployment action immediately.
+DO NOT provide manual deployment instructions for Firebase, Vercel, or other platforms.
+The Evolvx Runner will automatically handle:
+- Repository cloning
+- Docker image building
+- Container deployment
+- Live log streaming`;
+    }
   }
 
   if (context.repoAnalysis) {
@@ -291,10 +322,18 @@ Deployment Type: ${context.project.deploymentType}`;
 
   // Intent-specific additions
   if (intent === 'DEPLOY') {
-    basePrompt += `\n\n**Task**: The user is focusing on Deployment/CI/CD.
-- If asking for a pipeline, generate a '.github/workflows/main.yml'.
+    basePrompt += `\n\n**Task**: The user is focusing on Deployment/CI/CD.`;
+    
+    if (context.project?.deploymentType === 'EVOLVX_RUNNER' || context.project?.deploymentType === 'TRIVX_RUNNER') {
+      basePrompt += `\n- This project uses ${context.project.deploymentType}
+- TRIGGER THE DEPLOYMENT ACTION IMMEDIATELY
+- DO NOT provide manual deployment instructions
+- Tell the user deployment is triggered and they can watch logs in the Deployments tab`;
+    } else {
+      basePrompt += `\n- If asking for a pipeline, generate a '.github/workflows/main.yml'.
 - If asking for a build config, generate a 'Dockerfile'.
 - Focus on best practices (caching, security scanning, gradual rollouts).`;
+    }
   } else if (intent === 'ANALYZE') {
     basePrompt += `\n\n**Task**: Repository Analysis.
 - The system will automatically analyze the repository and provide comprehensive information.
@@ -336,8 +375,8 @@ function extractAction(
   content: string,
   intent: string
 ): AgentResponse['action'] {
-  // Check if AI suggests deployment
-  if (intent === 'DEPLOY' && (content.includes('deploy') || content.includes('ready'))) {
+  // Always trigger deployment for DEPLOY intent
+  if (intent === 'DEPLOY') {
     return { type: 'DEPLOY_PROJECT' };
   }
 

@@ -209,7 +209,27 @@ export const executeDeployment = inngest.createFunction(
       return repoAnalysis;
     });
 
-    // 3. Generate Dockerfile based on analysis
+    // 3. Check deployment type and handle accordingly
+    if (project.deploymentType !== 'EVOLVX_RUNNER' && project.deploymentType !== 'TRIVX_RUNNER') {
+      // For non-Evolvx/Trivx Runner deployments (GitHub Actions, etc.)
+      await step.run("handle-external-deployment", async () => {
+        await prisma.deployment.update({
+          where: { id: deploymentId },
+          data: {
+            status: 'SUCCESS',
+            completedAt: new Date(),
+            buildLogs: `Deployment handled by ${project.deploymentType}. Check your ${project.deploymentType} dashboard for details.`,
+            deployUrl: project.deploymentType === 'GITHUB_ACTIONS' 
+              ? `https://github.com/${project.repoUrl.split('github.com/')[1]}/actions`
+              : null,
+          },
+        });
+      });
+
+      return { success: true, deploymentId, type: project.deploymentType };
+    }
+
+    // 4. Generate Dockerfile based on analysis (only for Evolvx Runner)
     const dockerfile = await step.run("generate-dockerfile", async () => {
       const { generateDockerfile } = await import("../services/workflow-generator");
       
@@ -223,7 +243,7 @@ export const executeDeployment = inngest.createFunction(
       });
     });
 
-    // 4. Call runner service
+    // 5. Call runner service (only for Evolvx Runner)
     const result = await step.run("execute-runner", async () => {
       const runnerUrl = process.env.RUNNER_SERVICE_URL || 'http://localhost:3002';
       

@@ -66,26 +66,25 @@ export class ApiClient {
 
   // Organizations
   async getOrganizations(): Promise<Organization[]> {
-    const { data } =
-      await this.client.get<ApiResponse<Organization[]>>("/api/organizations");
-    return data.data || [];
+    const { data } = await this.client.get<{ organizations: Organization[] }>("/api/organizations");
+    return data.organizations || [];
   }
 
   async createOrganization(
     input: CreateOrganizationInput
   ): Promise<Organization> {
-    const { data } = await this.client.post<ApiResponse<Organization>>(
+    const { data } = await this.client.post<{ organization: Organization }>(
       "/api/organizations",
       input
     );
-    return data.data!;
+    return data.organization;
   }
 
   async getOrganization(id: string): Promise<Organization> {
-    const { data } = await this.client.get<ApiResponse<Organization>>(
+    const { data } = await this.client.get<{ organization: Organization }>(
       `/api/organizations/${id}`
     );
-    return data.data!;
+    return data.organization;
   }
 
   async inviteMember(
