@@ -1,416 +1,345 @@
-import { Octokit } from '@octokit/rest';
-import { FRAMEWORK_PATTERNS, DEFAULT_BUILD_COMMANDS, DEFAULT_START_COMMANDS } from '@evolvx/shared';
+import { prisma } from '@evolvx/db';
+import * as githubService from './github.service';
+import * as metadataExtractor from './metadata-extractor.service';
 import { chatCompletion } from './openai';
 import { storeRepoAnalysis } from './qdrant';
 
+/**
+ * Enhanced Repository Analyzer
+ * Comprehensive repository analysis with database persistence and Qdrant integration
+ */
+
 export interface RepoAnalysisResult {
   framework: string | null;
+  language: string | null;
   packageManager: string | null;
+  buildTool: string | null;
   buildCommand: string | null;
   startCommand: string | null;
   port: number | null;
-  dependencies: string[];
-  devDependencies: string[];
+  dependencies: any;
+  devDependencies: any;
   envVars: string[];
-  structure: {
-    hasDockerfile: boolean;
-    hasPackageJson: boolean;
-    hasRequirementsTxt: boolean;
-    hasGoMod: boolean;
-    hasCargoToml: boolean;
-    directories: string[];
-    mainFiles: string[];
-  };
+  structure: any;
+  infrastructure: any;
+  deployment: any;
+  testing: any;
   analysis: string;
 }
 
 /**
- * Analyze a GitHub repository
- */
-export async function analyzeRepository(
-  repoUrl: string,
-  installationId?: number
-): Promise<RepoAnalysisResult> {
-  // Extract owner and repo from URL
-  const match = repoUrl.match(/github\.com\/([^\/]+)\/([^\/\.]+)/);
-  if (!match) {
-    throw new Error('Invalid GitHub repository URL');
-  }
-
-  const [, owner, repo] = match;
-
-  // Create Octokit instance
-  let octokit: Octokit;
-  
-  if (installationId) {
-    // Use installation token for private repos
-    const { createAppAuth } = await import('@octokit/auth-app');
-    const fs = await import('fs');
-    const path = await import('path');
-    
-    // Read private key from file
-    let privateKey: string;
-    const privateKeyPath = process.env.GITHUB_PRIVATE_KEY_PATH;
-    
-    if (privateKeyPath) {
-      // Read from file path
-      const fullPath = path.isAbsolute(privateKeyPath)
-        ? privateKeyPath
-        : path.join(process.cwd(), privateKeyPath);
-      privateKey = fs.readFileSync(fullPath, 'utf-8');
-    } else if (process.env.GITHUB_APP_PRIVATE_KEY) {
-      // Fallback to env var
-      privateKey = process.env.GITHUB_APP_PRIVATE_KEY.replace(/\\n/g, '\n');
-    } else {
-      throw new Error('GitHub App private key not configured. Set GITHUB_PRIVATE_KEY_PATH or GITHUB_APP_PRIVATE_KEY');
-    }
-    
-    const auth = createAppAuth({
-      appId: process.env.GITHUB_APP_ID!,
-      privateKey,
-    });
-
-    const installationAuth = await auth({
-      type: 'installation',
-      installationId,
-    });
-
-    octokit = new Octokit({
-      auth: installationAuth.token,
-    });
-  } else {
-    // Use personal access token for public repos
-    octokit = new Octokit({
-      auth: process.env.GITHUB_PERSONAL_TOKEN,
-    });
-  }
-
-  try {
-    // Fetch repository contents
-    const { data: contents } = await octokit.repos.getContent({
-      owner,
-      repo,
-      path: '',
-    });
-
-    if (!Array.isArray(contents)) {
-      throw new Error('Unable to read repository contents');
-    }
-
-    // Analyze structure
-    const structure = {
-      hasDockerfile: contents.some((f) => f.name === 'Dockerfile'),
-      hasPackageJson: contents.some((f) => f.name === 'package.json'),
-      hasRequirementsTxt: contents.some((f) => f.name === 'requirements.txt'),
-      hasGoMod: contents.some((f) => f.name === 'go.mod'),
-      hasCargoToml: contents.some((f) => f.name === 'Cargo.toml'),
-      directories: contents.filter((f) => f.type === 'dir').map((f) => f.name),
-      mainFiles: contents.filter((f) => f.type === 'file').map((f) => f.name),
-    };
-
-    // Detect framework
-    const framework = await detectFramework(octokit, owner, repo, structure);
-
-    // Get package.json if exists
-    let dependencies: string[] = [];
-    let devDependencies: string[] = [];
-    let packageManager = 'npm';
-
-    if (structure.hasPackageJson) {
-      const packageData = await getFileContent(octokit, owner, repo, 'package.json');
-      if (packageData) {
-        const pkg = JSON.parse(packageData);
-        dependencies = Object.keys(pkg.dependencies || {});
-        devDependencies = Object.keys(pkg.devDependencies || {});
-        
-        // Detect package manager
-        if (contents.some((f) => f.name === 'pnpm-lock.yaml')) {
-          packageManager = 'pnpm';
-        } else if (contents.some((f) => f.name === 'yarn.lock')) {
-          packageManager = 'yarn';
-        }
-      }
-    }
-
-    // Get Python requirements
-    if (structure.hasRequirementsTxt) {
-      const reqsData = await getFileContent(octokit, owner, repo, 'requirements.txt');
-      if (reqsData) {
-        dependencies = reqsData
-          .split('\n')
-          .filter((line) => line.trim() && !line.startsWith('#'))
-          .map((line) => line.split('==')[0].split('>=')[0].trim());
-      }
-      packageManager = 'pip';
-    }
-
-    // Detect environment variables
-    const envVars = await detectEnvVars(octokit, owner, repo, framework);
-
-    // Detect port
-    const port = await detectPort(octokit, owner, repo, framework);
-
-    // Get default commands based on framework
-    const buildCommand = framework ? (DEFAULT_BUILD_COMMANDS as any)[framework] : null;
-    const startCommand = framework ? (DEFAULT_START_COMMANDS as any)[framework] : null;
-
-    // Generate AI analysis (optional - don't fail if OpenAI is unavailable)
-    let aiAnalysisContent = '';
-    try {
-      // Fetch README for context
-      let readmeContent = '';
-      const readmeNames = ['README.md', 'readme.md', 'README', 'Readme.md'];
-      for (const readmeName of readmeNames) {
-        if (structure.mainFiles.includes(readmeName)) {
-          const content = await getFileContent(octokit, owner, repo, readmeName);
-          if (content) {
-            readmeContent = content.substring(0, 2000); // Limit to 2000 chars
-            break;
-          }
-        }
-      }
-
-      // Build comprehensive analysis prompt
-      const analysisPrompt = `You are analyzing a GitHub repository. Provide a detailed technical analysis.
-
-## Repository Information
-- **Framework**: ${framework || 'Unknown'}
-- **Package Manager**: ${packageManager}
-- **Build Command**: ${buildCommand || 'Not detected'}
-- **Start Command**: ${startCommand || 'Not detected'}
-
-## Directory Structure
-Directories: ${structure.directories.join(', ') || 'None'}
-Root files: ${structure.mainFiles.join(', ')}
-
-## Dependencies (${dependencies.length} total)
-${dependencies.slice(0, 20).join(', ')}${dependencies.length > 20 ? '...' : ''}
-
-## Dev Dependencies (${devDependencies.length} total)
-${devDependencies.slice(0, 10).join(', ')}${devDependencies.length > 10 ? '...' : ''}
-
-${readmeContent ? `## README Content\n${readmeContent}` : '## No README found'}
-
-## Analysis Task
-Based on the above, provide:
-1. What this application does (purpose)
-2. Key technologies and patterns used
-3. Notable features based on dependencies
-4. Potential deployment considerations
-5. Any security or configuration notes
-
-Be specific and reference actual dependencies/files you see.`;
-
-      const aiAnalysis = await chatCompletion({
-        messages: [
-          { role: 'system', content: 'You are an expert SRE and DevOps engineer analyzing repositories. Provide concise, actionable technical analysis based on the ACTUAL data provided. Reference specific dependencies, files, and patterns you observe. Never ask for more information - work with what you have.' },
-          { role: 'user', content: analysisPrompt },
-        ],
-        temperature: 0.3,
-        maxTokens: 800,
-      });
-      aiAnalysisContent = aiAnalysis.content;
-    } catch (error) {
-      console.error('AI analysis failed (non-critical):', error);
-      // Fallback to basic analysis
-      aiAnalysisContent = `${framework || 'Unknown'} application with ${dependencies.length} dependencies. Package manager: ${packageManager}. ${structure.hasDockerfile ? 'Includes Docker configuration.' : ''}`;
-    }
-
-    const result: RepoAnalysisResult = {
-      framework,
-      packageManager,
-      buildCommand,
-      startCommand,
-      port,
-      dependencies,
-      devDependencies,
-      envVars,
-      structure,
-      analysis: aiAnalysisContent,
-    };
-
-    return result;
-  } catch (error: any) {
-    console.error('Repository analysis error:', error);
-    throw new Error(`Failed to analyze repository: ${error.message}`);
-  }
-}
-
-/**
- * Detect framework from repository files
- */
-async function detectFramework(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  structure: any
-): Promise<string | null> {
-  // Check for framework-specific files
-  for (const [framework, patterns] of Object.entries(FRAMEWORK_PATTERNS)) {
-    for (const pattern of patterns) {
-      if (structure.mainFiles.includes(pattern)) {
-        return framework;
-      }
-    }
-  }
-
-  // Check package.json for framework hints
-  if (structure.hasPackageJson) {
-    const packageData = await getFileContent(octokit, owner, repo, 'package.json');
-    if (packageData) {
-      const pkg = JSON.parse(packageData);
-      const deps = { ...pkg.dependencies, ...pkg.devDependencies };
-
-      if (deps.next) return 'Next.js';
-      if (deps.vite) return 'React (Vite)';
-      if (deps['react-scripts']) return 'React (CRA)';
-      if (deps.express || deps.fastify) return 'Node.js';
-    }
-  }
-
-  return null;
-}
-
-/**
- * Detect environment variables from common config files
- */
-async function detectEnvVars(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  framework: string | null
-): Promise<string[]> {
-  const envVars = new Set<string>();
-
-  // Check .env.example
-  const envExample = await getFileContent(octokit, owner, repo, '.env.example');
-  if (envExample) {
-    const matches = envExample.matchAll(/^([A-Z_][A-Z0-9_]*)=/gm);
-    for (const match of matches) {
-      envVars.add(match[1]);
-    }
-  }
-
-  // Check common config files
-  const configFiles = ['config.js', 'config.ts', 'src/config.ts', 'next.config.js'];
-  for (const file of configFiles) {
-    const content = await getFileContent(octokit, owner, repo, file);
-    if (content) {
-      const matches = content.matchAll(/process\.env\.([A-Z_][A-Z0-9_]*)/g);
-      for (const match of matches) {
-        envVars.add(match[1]);
-      }
-    }
-  }
-
-  return Array.from(envVars);
-}
-
-/**
- * Detect port from code
- */
-async function detectPort(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  framework: string | null
-): Promise<number | null> {
-  const files = ['index.js', 'index.ts', 'server.js', 'server.ts', 'src/index.ts', 'src/server.ts', 'main.py', 'app.py'];
-
-  for (const file of files) {
-    const content = await getFileContent(octokit, owner, repo, file);
-    if (content) {
-      // Look for port definitions
-      const portMatch = content.match(/port.*?(\d{4,5})/i);
-      if (portMatch) {
-        return parseInt(portMatch[1]);
-      }
-
-      // Look for process.env.PORT defaults
-      const envPortMatch = content.match(/process\.env\.PORT.*?(\d{4,5})/);
-      if (envPortMatch) {
-        return parseInt(envPortMatch[1]);
-      }
-    }
-  }
-
-  // Default ports by framework
-  const defaultPorts: Record<string, number> = {
-    'Next.js': 3000,
-    'Node.js': 3000,
-    'React (Vite)': 5173,
-    'React (CRA)': 3000,
-    'Python (Django)': 8000,
-    'Python (Flask)': 5000,
-    'Python (FastAPI)': 8000,
-    'Go': 8080,
-  };
-
-  return framework ? defaultPorts[framework] || null : null;
-}
-
-/**
- * Get file content from repository
- */
-async function getFileContent(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  path: string
-): Promise<string | null> {
-  try {
-    const { data } = await octokit.repos.getContent({
-      owner,
-      repo,
-      path,
-    });
-
-    if ('content' in data && data.content) {
-      return Buffer.from(data.content, 'base64').toString('utf-8');
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Analyze and store repository (full workflow)
+ * Main analysis function with database persistence
  */
 export async function analyzeAndStore(
   projectId: string,
   repoUrl: string,
   installationId?: number
 ): Promise<RepoAnalysisResult> {
-  console.log(`🔍 Starting analysis for project ${projectId}`);
+  console.log(`🔍 Starting comprehensive analysis for project ${projectId}`);
   console.log(`   Repository: ${repoUrl}`);
   console.log(`   Installation ID: ${installationId || 'none'}`);
-  
-  // Run analysis
-  const analysis = await analyzeRepository(repoUrl, installationId);
-  
-  console.log(`✅ Analysis complete for ${projectId}:`, {
-    framework: analysis.framework,
-    dependencies: analysis.dependencies.length,
-    hasAnalysis: !!analysis.analysis,
+
+  // Extract owner and repo from URL
+  const { owner, repo } = githubService.parseGitHubUrl(repoUrl);
+
+  // Get project to find organizationId
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { organizationId: true },
   });
 
-  // Store in Qdrant for future RAG
-  console.log(`💾 Storing analysis in Qdrant for ${projectId}...`);
-  const qdrantResult = await storeRepoAnalysis({
-    projectId,
-    repoUrl,
-    framework: analysis.framework || 'Unknown',
-    dependencies: analysis.dependencies,
-    structure: analysis.structure,
-    analysis: analysis.analysis,
-  });
-
-  if (qdrantResult.success) {
-    console.log(`✅ Successfully stored in Qdrant for ${projectId}`);
-  } else {
-    console.error(`❌ Failed to store in Qdrant for ${projectId}:`, qdrantResult.error);
+  if (!project) {
+    throw new Error('Project not found');
   }
 
+  // Create pending analysis record
+  const analysisRecord = await prisma.repoAnalysis.create({
+    data: {
+      projectId,
+      repositoryFullName: `${owner}/${repo}`,
+      repositoryName: repo,
+      owner,
+      status: 'analyzing',
+    },
+  });
+
+  try {
+    // Get repository metadata
+    const repoMetadata = await githubService.getRepositoryMetadata(installationId, owner, repo);
+    console.log(`✅ Fetched repository metadata: ${repoMetadata.name}`);
+
+    // Extract comprehensive metadata
+    const metadata = await metadataExtractor.extractMetadata(
+      installationId,
+      owner,
+      repo,
+      repoMetadata.defaultBranch,
+      projectId,
+      project.organizationId
+    );
+    console.log(`✅ Extracted metadata:`, {
+      framework: metadata.dependencies.framework,
+      language: metadata.dependencies.language,
+      buildTool: metadata.build.tool,
+      hasDocker: metadata.infrastructure.docker.hasDockerfile,
+      hasCICD: !!metadata.infrastructure.cicd.provider,
+    });
+
+    // Generate AI summary
+    const aiSummary = await generateAISummary(metadata, repoMetadata);
+    console.log(`✅ Generated AI summary (${aiSummary.length} chars)`);
+
+    // Update database with results
+    await prisma.repoAnalysis.update({
+      where: { id: analysisRecord.id },
+      data: {
+        framework: metadata.dependencies.framework,
+        language: metadata.dependencies.language,
+        buildTool: metadata.build.tool,
+        packageManager: metadata.build.tool,
+        hasDockerfile: metadata.infrastructure.docker.hasDockerfile,
+        hasCIConfig: !!metadata.infrastructure.cicd.provider,
+        dependencies: {
+          production: metadata.dependencies.runtime,
+          development: metadata.dependencies.development,
+        },
+        structure: JSON.parse(JSON.stringify(metadata.structure)),
+        infrastructure: JSON.parse(JSON.stringify(metadata.infrastructure)),
+        environment: JSON.parse(JSON.stringify(metadata.environment)),
+        deployment: JSON.parse(JSON.stringify(metadata.deployment)),
+        aiSummary,
+        status: 'completed',
+        completedAt: new Date(),
+      },
+    });
+    console.log(`✅ Stored analysis in database`);
+
+    // Store in Qdrant for RAG
+    console.log(`💾 Storing analysis in Qdrant...`);
+    const qdrantResult = await storeRepoAnalysis({
+      projectId,
+      repoUrl,
+      framework: metadata.dependencies.framework || 'Unknown',
+      dependencies: Object.keys(metadata.dependencies.runtime),
+      structure: metadata.structure,
+      analysis: aiSummary,
+    });
+
+    if (qdrantResult.success) {
+      console.log(`✅ Successfully stored in Qdrant`);
+    } else {
+      console.error(`❌ Failed to store in Qdrant:`, qdrantResult.error);
+    }
+
+    // Return result in expected format
+    return {
+      framework: metadata.dependencies.framework,
+      language: metadata.dependencies.language,
+      packageManager: metadata.build.tool,
+      buildTool: metadata.build.tool,
+      buildCommand: metadata.build.commands.build,
+      startCommand: metadata.build.commands.start,
+      port: metadata.deployment.port || null,
+      dependencies: metadata.dependencies.runtime,
+      devDependencies: metadata.dependencies.development,
+      envVars: metadata.environment.requiredVars,
+      structure: metadata.structure,
+      infrastructure: metadata.infrastructure,
+      deployment: metadata.deployment,
+      testing: metadata.testing,
+      analysis: aiSummary,
+    };
+  } catch (error: any) {
+    console.error('❌ Repository analysis failed:', error.message);
+
+    // Update status to failed
+    await prisma.repoAnalysis.update({
+      where: { id: analysisRecord.id },
+      data: {
+        status: 'failed',
+        error: error.message,
+      },
+    });
+
+    throw error;
+  }
+}
+
+/**
+ * Generate AI summary from metadata
+ */
+async function generateAISummary(
+  metadata: metadataExtractor.RepoMetadata,
+  repoMetadata: githubService.RepositoryMetadata
+): Promise<string> {
+  try {
+    // Fetch README for context
+    const readme = await githubService.getReadme(
+      undefined,
+      metadata.repositoryFullName.split('/')[0],
+      metadata.repositoryFullName.split('/')[1]
+    );
+
+    const readmeContent = readme ? readme.substring(0, 2000) : 'No README found';
+
+    // Build comprehensive analysis prompt
+    const analysisPrompt = `You are analyzing a GitHub repository. Provide a detailed technical analysis for DevOps automation.
+
+## Repository Information
+- **Name**: ${repoMetadata.name}
+- **Description**: ${repoMetadata.description || 'No description'}
+- **Language**: ${metadata.dependencies.language}
+- **Framework**: ${metadata.dependencies.framework}
+- **Stars**: ${repoMetadata.stars}
+- **Project Type**: ${metadata.structure.type}
+
+## Technical Stack
+- **Build Tool**: ${metadata.build.tool}
+- **Build Command**: ${metadata.build.commands.build}
+- **Start Command**: ${metadata.build.commands.start}
+- **Test Framework**: ${metadata.testing.framework || 'Not detected'}
+
+## Infrastructure
+- **Docker**: ${metadata.infrastructure.docker.hasDockerfile ? 'Yes' : 'No'}${metadata.infrastructure.docker.baseImage ? ` (${metadata.infrastructure.docker.baseImage})` : ''}
+- **CI/CD**: ${metadata.infrastructure.cicd.provider || 'None'}
+- **Kubernetes**: ${metadata.infrastructure.kubernetes.hasManifests ? 'Yes' : 'No'}
+
+## Dependencies
+**Production** (${Object.keys(metadata.dependencies.runtime).length} total):
+${Object.keys(metadata.dependencies.runtime).slice(0, 20).join(', ')}${Object.keys(metadata.dependencies.runtime).length > 20 ? '...' : ''}
+
+**Development** (${Object.keys(metadata.dependencies.development).length} total):
+${Object.keys(metadata.dependencies.development).slice(0, 10).join(', ')}${Object.keys(metadata.dependencies.development).length > 10 ? '...' : ''}
+
+## Environment Variables
+${metadata.environment.requiredVars.length > 0 ? metadata.environment.requiredVars.slice(0, 10).join(', ') : 'None detected'}
+
+## Deployment
+- **Port**: ${metadata.deployment.port || 'Not detected'}
+- **Health Check**: ${metadata.deployment.healthCheck || 'Not detected'}
+- **Entry Point**: ${metadata.deployment.entrypoint || 'Not detected'}
+
+## README Content
+${readmeContent}
+
+## Analysis Task
+Based on the above information, provide a comprehensive DevOps-focused analysis covering:
+
+1. **Application Purpose**: What this application does based on dependencies and README
+2. **Architecture & Patterns**: Key architectural patterns and technologies used
+3. **Deployment Readiness**: 
+   - Is it ready for production deployment?
+   - What's missing (Docker, CI/CD, health checks, etc.)?
+   - Recommended next steps for deployment
+4. **CI/CD Recommendations**: 
+   - If no CI/CD exists, suggest appropriate pipeline
+   - If CI/CD exists, note what it covers
+5. **Infrastructure Recommendations**:
+   - Containerization strategy
+   - Scaling considerations
+   - Monitoring and observability needs
+6. **Security & Configuration**:
+   - Environment variables and secrets management
+   - Security best practices to implement
+7. **Notable Features**: Unique aspects based on dependencies
+
+Be specific and reference actual dependencies, files, and configurations you observe. Provide actionable recommendations for a DevOps engineer.`;
+
+    const aiAnalysis = await chatCompletion({
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an expert SRE and DevOps engineer analyzing repositories for production deployment. Provide concise, actionable technical analysis based on ACTUAL data. Reference specific dependencies, files, and patterns you observe. Focus on deployment readiness and infrastructure recommendations.',
+        },
+        { role: 'user', content: analysisPrompt },
+      ],
+      temperature: 0.3,
+      maxTokens: 1200,
+    });
+
+    return aiAnalysis.content;
+  } catch (error) {
+    console.error('AI analysis failed (non-critical):', error);
+
+    // Fallback to structured summary
+    return `${metadata.dependencies.framework || 'Unknown'} application written in ${metadata.dependencies.language}.
+
+**Build System**: ${metadata.build.tool}
+**Dependencies**: ${Object.keys(metadata.dependencies.runtime).length} production, ${Object.keys(metadata.dependencies.development).length} development
+
+**Infrastructure**:
+- Docker: ${metadata.infrastructure.docker.hasDockerfile ? '✅ Yes' : '❌ No'}
+- CI/CD: ${metadata.infrastructure.cicd.provider || '❌ None'}
+- Kubernetes: ${metadata.infrastructure.kubernetes.hasManifests ? '✅ Yes' : '❌ No'}
+
+**Deployment Readiness**: ${metadata.summary.deploymentReady ? '✅ Ready' : '⚠️ Needs setup'}
+
+**Recommended Actions**:
+${!metadata.infrastructure.docker.hasDockerfile ? '- Add Dockerfile for containerization\n' : ''}${!metadata.infrastructure.cicd.provider ? '- Set up CI/CD pipeline\n' : ''}${!metadata.deployment.healthCheck ? '- Add health check endpoint\n' : ''}`;
+  }
+}
+
+/**
+ * Get latest analysis from database
+ */
+export async function getLatestAnalysis(projectId: string): Promise<any | null> {
+  const analysis = await prisma.repoAnalysis.findFirst({
+    where: { projectId },
+    orderBy: { createdAt: 'desc' },
+  });
+
   return analysis;
+}
+
+/**
+ * Check if analysis is stale (> 24 hours old)
+ */
+export function isAnalysisStale(analysis: any): boolean {
+  if (!analysis || !analysis.createdAt) return true;
+  const ageMs = Date.now() - new Date(analysis.createdAt).getTime();
+  const twentyFourHours = 24 * 60 * 60 * 1000;
+  return ageMs > twentyFourHours;
+}
+
+/**
+ * Legacy function for backward compatibility
+ */
+export async function analyzeRepository(
+  repoUrl: string,
+  installationId?: number
+): Promise<RepoAnalysisResult> {
+  // This is a simplified version for direct calls without projectId
+  // In practice, this should be called via analyzeAndStore with a projectId
+  const { owner, repo } = githubService.parseGitHubUrl(repoUrl);
+  
+  const repoMetadata = await githubService.getRepositoryMetadata(installationId, owner, repo);
+  
+  const metadata = await metadataExtractor.extractMetadata(
+    installationId,
+    owner,
+    repo,
+    repoMetadata.defaultBranch,
+    'temp-project-id',
+    'temp-org-id'
+  );
+
+  const aiSummary = await generateAISummary(metadata, repoMetadata);
+
+  return {
+    framework: metadata.dependencies.framework,
+    language: metadata.dependencies.language,
+    packageManager: metadata.build.tool,
+    buildTool: metadata.build.tool,
+    buildCommand: metadata.build.commands.build,
+    startCommand: metadata.build.commands.start,
+    port: metadata.deployment.port || null,
+    dependencies: metadata.dependencies.runtime,
+    devDependencies: metadata.dependencies.development,
+    envVars: metadata.environment.requiredVars,
+    structure: metadata.structure,
+    infrastructure: metadata.infrastructure,
+    deployment: metadata.deployment,
+    testing: metadata.testing,
+    analysis: aiSummary,
+  };
 }

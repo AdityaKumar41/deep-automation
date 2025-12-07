@@ -42,17 +42,41 @@ export async function dispatchAction(
 async function handleDeploy(intent: IntentResult, context: AgentContext): Promise<AgentResponse> {
   if (!context.projectId) {
     return {
-      content: "I need to know which project you want to deploy. Please navigate to a project or specify the name.",
+      content: "I need to know which project you want to deploy. Please navigate to a project first.",
       action: { type: 'NONE' }
     };
   }
 
-  // Check if we have a repo analyzed
-  // In a real flow, checking DB or Qdrant. 
-  // For now, assume we trigger analysis if not ready, or just confirm deploy.
-  
+  // Get project details
+  const project = await prisma.project.findUnique({
+    where: { id: context.projectId },
+    include: {
+      deployments: {
+        orderBy: { startedAt: 'desc' },
+        take: 1,
+      },
+    },
+  });
+
+  if (!project) {
+    return {
+      content: "Project not found.",
+      action: { type: 'NONE' }
+    };
+  }
+
+  // Check if there's already an active deployment
+  const activeDeployment = project.deployments[0];
+  if (activeDeployment && (activeDeployment.status === 'BUILDING' || activeDeployment.status === 'DEPLOYING' || activeDeployment.status === 'PENDING')) {
+    return {
+      content: `A deployment is already in progress (${activeDeployment.status}). You can watch the progress in the Deployments tab.`,
+      action: { type: 'NONE' }
+    };
+  }
+
+  // Trigger deployment immediately
   return {
-    content: `I'm preparing to deploy project ${context.projectId}. \n\nI will:\n1. Analyze the repository\n2. Generate a deployment plan\n3. Execute the runner.\n\nType "confirm" to proceed.`,
+    content: `🚀 I've triggered a deployment for **${project.name}**!\n\nYou can watch the real-time build logs in the **Deployments** tab. I'll notify you when it's complete.`,
     action: { 
       type: 'DEPLOY_PROJECT', 
       params: { projectId: context.projectId, ...intent.params } 

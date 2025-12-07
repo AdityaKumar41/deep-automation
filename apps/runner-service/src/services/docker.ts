@@ -31,33 +31,67 @@ export interface ContainerConfig {
 /**
  * Build Docker image from repository
  */
-export async function buildImage(config: BuildConfig): Promise<{
+export async function buildImage(
+  config: BuildConfig,
+  onLog?: (log: string) => void
+): Promise<{
   success: boolean;
   imageName?: string;
   logs: string;
   error?: string;
 }> {
-  const { deploymentId, dockerfile, repoUrl, branch, commitSha } = config;
+  const { deploymentId, dockerfile, repoUrl, branch, commitSha, projectId } = config;
   const imageName = `evolvx/${deploymentId}:${commitSha.substring(0, 7)}`;
+  const tempDir = `/tmp/evolvx-build-${deploymentId}`;
 
   try {
-    // Create tar archive with Dockerfile and context
+    // Clone repository
+    onLog?.('📦 Cloning repository...\n');
+    const { cloneRepository, cleanupRepository, getRepositoryFiles } = await import('./github');
+    
+    const cloneResult = await cloneRepository({
+      repoUrl,
+      branch,
+      commitSha,
+      targetDir: tempDir,
+    });
+
+    if (!cloneResult.success) {
+      throw new Error(`Failed to clone repository: ${cloneResult.error}`);
+    }
+
+    onLog?.('✅ Repository cloned successfully\n');
+
+    // Get all repository files
+    const files = await getRepositoryFiles(tempDir);
+    onLog?.(`📁 Found ${files.length} files\n`);
+
+    // Create tar archive with Dockerfile and repository files
     const pack = tar.pack();
     
     // Add Dockerfile
     pack.entry({ name: 'Dockerfile' }, dockerfile);
+    onLog?.('📝 Added Dockerfile to build context\n');
     
-    // TODO: Clone repository and add files to archive
-    // For now, we'll use the Dockerfile only
+    // Add all repository files
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    
+    for (const file of files) {
+      const fullPath = path.join(tempDir, file);
+      const content = await fs.readFile(fullPath);
+      pack.entry({ name: file }, content);
+    }
     
     pack.finalize();
+    onLog?.('🔨 Starting Docker build...\n');
 
     // Build image
     const stream = await docker.buildImage(pack, {
       t: imageName,
       labels: {
         'evolvx.deployment': deploymentId,
-        'evolvx.project': config.projectId,
+        'evolvx.project': projectId,
         'evolvx.commit': commitSha,
       },
     });
@@ -75,13 +109,20 @@ export async function buildImage(config: BuildConfig): Promise<{
         (event) => {
           if (event.stream) {
             logs += event.stream;
+            onLog?.(event.stream);
           }
           if (event.error) {
-            logs += `ERROR: ${event.error}\n`;
+            const errorLog = `ERROR: ${event.error}\n`;
+            logs += errorLog;
+            onLog?.(errorLog);
           }
         }
       );
     });
+
+    // Cleanup cloned repository
+    await cleanupRepository(tempDir);
+    onLog?.('✅ Build complete!\n');
 
     return {
       success: true,
@@ -89,6 +130,10 @@ export async function buildImage(config: BuildConfig): Promise<{
       logs,
     };
   } catch (error: any) {
+    // Cleanup on error
+    const { cleanupRepository } = await import('./github');
+    await cleanupRepository(tempDir);
+    
     return {
       success: false,
       logs: error.message || 'Build failed',

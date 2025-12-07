@@ -254,6 +254,7 @@ export type ProjectWhereInput = {
   metrics?: Prisma.MetricListRelationFilter
   ragDocuments?: Prisma.RagDocumentListRelationFilter
   chatSessions?: Prisma.ChatSessionListRelationFilter
+  repoAnalyses?: Prisma.RepoAnalysisListRelationFilter
 }
 
 export type ProjectOrderByWithRelationInput = {
@@ -278,6 +279,7 @@ export type ProjectOrderByWithRelationInput = {
   metrics?: Prisma.MetricOrderByRelationAggregateInput
   ragDocuments?: Prisma.RagDocumentOrderByRelationAggregateInput
   chatSessions?: Prisma.ChatSessionOrderByRelationAggregateInput
+  repoAnalyses?: Prisma.RepoAnalysisOrderByRelationAggregateInput
 }
 
 export type ProjectWhereUniqueInput = Prisma.AtLeast<{
@@ -306,6 +308,7 @@ export type ProjectWhereUniqueInput = Prisma.AtLeast<{
   metrics?: Prisma.MetricListRelationFilter
   ragDocuments?: Prisma.RagDocumentListRelationFilter
   chatSessions?: Prisma.ChatSessionListRelationFilter
+  repoAnalyses?: Prisma.RepoAnalysisListRelationFilter
 }, "id" | "organizationId_slug">
 
 export type ProjectOrderByWithAggregationInput = {
@@ -366,6 +369,7 @@ export type ProjectCreateInput = {
   metrics?: Prisma.MetricCreateNestedManyWithoutProjectInput
   ragDocuments?: Prisma.RagDocumentCreateNestedManyWithoutProjectInput
   chatSessions?: Prisma.ChatSessionCreateNestedManyWithoutProjectInput
+  repoAnalyses?: Prisma.RepoAnalysisCreateNestedManyWithoutProjectInput
 }
 
 export type ProjectUncheckedCreateInput = {
@@ -388,6 +392,7 @@ export type ProjectUncheckedCreateInput = {
   metrics?: Prisma.MetricUncheckedCreateNestedManyWithoutProjectInput
   ragDocuments?: Prisma.RagDocumentUncheckedCreateNestedManyWithoutProjectInput
   chatSessions?: Prisma.ChatSessionUncheckedCreateNestedManyWithoutProjectInput
+  repoAnalyses?: Prisma.RepoAnalysisUncheckedCreateNestedManyWithoutProjectInput
 }
 
 export type ProjectUpdateInput = {
@@ -410,6 +415,7 @@ export type ProjectUpdateInput = {
   metrics?: Prisma.MetricUpdateManyWithoutProjectNestedInput
   ragDocuments?: Prisma.RagDocumentUpdateManyWithoutProjectNestedInput
   chatSessions?: Prisma.ChatSessionUpdateManyWithoutProjectNestedInput
+  repoAnalyses?: Prisma.RepoAnalysisUpdateManyWithoutProjectNestedInput
 }
 
 export type ProjectUncheckedUpdateInput = {
@@ -432,6 +438,7 @@ export type ProjectUncheckedUpdateInput = {
   metrics?: Prisma.MetricUncheckedUpdateManyWithoutProjectNestedInput
   ragDocuments?: Prisma.RagDocumentUncheckedUpdateManyWithoutProjectNestedInput
   chatSessions?: Prisma.ChatSessionUncheckedUpdateManyWithoutProjectNestedInput
+  repoAnalyses?: Prisma.RepoAnalysisUncheckedUpdateManyWithoutProjectNestedInput
 }
 
 export type ProjectCreateManyInput = {
@@ -715,6 +722,20 @@ export type ProjectUpdateOneRequiredWithoutRagDocumentsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.ProjectUpdateToOneWithWhereWithoutRagDocumentsInput, Prisma.ProjectUpdateWithoutRagDocumentsInput>, Prisma.ProjectUncheckedUpdateWithoutRagDocumentsInput>
 }
 
+export type ProjectCreateNestedOneWithoutRepoAnalysesInput = {
+  create?: Prisma.XOR<Prisma.ProjectCreateWithoutRepoAnalysesInput, Prisma.ProjectUncheckedCreateWithoutRepoAnalysesInput>
+  connectOrCreate?: Prisma.ProjectCreateOrConnectWithoutRepoAnalysesInput
+  connect?: Prisma.ProjectWhereUniqueInput
+}
+
+export type ProjectUpdateOneRequiredWithoutRepoAnalysesNestedInput = {
+  create?: Prisma.XOR<Prisma.ProjectCreateWithoutRepoAnalysesInput, Prisma.ProjectUncheckedCreateWithoutRepoAnalysesInput>
+  connectOrCreate?: Prisma.ProjectCreateOrConnectWithoutRepoAnalysesInput
+  upsert?: Prisma.ProjectUpsertWithoutRepoAnalysesInput
+  connect?: Prisma.ProjectWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.ProjectUpdateToOneWithWhereWithoutRepoAnalysesInput, Prisma.ProjectUpdateWithoutRepoAnalysesInput>, Prisma.ProjectUncheckedUpdateWithoutRepoAnalysesInput>
+}
+
 export type ProjectCreateNestedOneWithoutChatSessionsInput = {
   create?: Prisma.XOR<Prisma.ProjectCreateWithoutChatSessionsInput, Prisma.ProjectUncheckedCreateWithoutChatSessionsInput>
   connectOrCreate?: Prisma.ProjectCreateOrConnectWithoutChatSessionsInput
@@ -750,6 +771,7 @@ export type ProjectCreateWithoutOrganizationInput = {
   metrics?: Prisma.MetricCreateNestedManyWithoutProjectInput
   ragDocuments?: Prisma.RagDocumentCreateNestedManyWithoutProjectInput
   chatSessions?: Prisma.ChatSessionCreateNestedManyWithoutProjectInput
+  repoAnalyses?: Prisma.RepoAnalysisCreateNestedManyWithoutProjectInput
 }
 
 export type ProjectUncheckedCreateWithoutOrganizationInput = {
@@ -771,6 +793,7 @@ export type ProjectUncheckedCreateWithoutOrganizationInput = {
   metrics?: Prisma.MetricUncheckedCreateNestedManyWithoutProjectInput
   ragDocuments?: Prisma.RagDocumentUncheckedCreateNestedManyWithoutProjectInput
   chatSessions?: Prisma.ChatSessionUncheckedCreateNestedManyWithoutProjectInput
+  repoAnalyses?: Prisma.RepoAnalysisUncheckedCreateNestedManyWithoutProjectInput
 }
 
 export type ProjectCreateOrConnectWithoutOrganizationInput = {
@@ -837,6 +860,7 @@ export type ProjectCreateWithoutGithubRepoInput = {
   metrics?: Prisma.MetricCreateNestedManyWithoutProjectInput
   ragDocuments?: Prisma.RagDocumentCreateNestedManyWithoutProjectInput
   chatSessions?: Prisma.ChatSessionCreateNestedManyWithoutProjectInput
+  repoAnalyses?: Prisma.RepoAnalysisCreateNestedManyWithoutProjectInput
 }
 
 export type ProjectUncheckedCreateWithoutGithubRepoInput = {
@@ -858,6 +882,7 @@ export type ProjectUncheckedCreateWithoutGithubRepoInput = {
   metrics?: Prisma.MetricUncheckedCreateNestedManyWithoutProjectInput
   ragDocuments?: Prisma.RagDocumentUncheckedCreateNestedManyWithoutProjectInput
   chatSessions?: Prisma.ChatSessionUncheckedCreateNestedManyWithoutProjectInput
+  repoAnalyses?: Prisma.RepoAnalysisUncheckedCreateNestedManyWithoutProjectInput
 }
 
 export type ProjectCreateOrConnectWithoutGithubRepoInput = {
@@ -905,6 +930,7 @@ export type ProjectCreateWithoutPipelinesInput = {
   metrics?: Prisma.MetricCreateNestedManyWithoutProjectInput
   ragDocuments?: Prisma.RagDocumentCreateNestedManyWithoutProjectInput
   chatSessions?: Prisma.ChatSessionCreateNestedManyWithoutProjectInput
+  repoAnalyses?: Prisma.RepoAnalysisCreateNestedManyWithoutProjectInput
 }
 
 export type ProjectUncheckedCreateWithoutPipelinesInput = {
@@ -926,6 +952,7 @@ export type ProjectUncheckedCreateWithoutPipelinesInput = {
   metrics?: Prisma.MetricUncheckedCreateNestedManyWithoutProjectInput
   ragDocuments?: Prisma.RagDocumentUncheckedCreateNestedManyWithoutProjectInput
   chatSessions?: Prisma.ChatSessionUncheckedCreateNestedManyWithoutProjectInput
+  repoAnalyses?: Prisma.RepoAnalysisUncheckedCreateNestedManyWithoutProjectInput
 }
 
 export type ProjectCreateOrConnectWithoutPipelinesInput = {
@@ -963,6 +990,7 @@ export type ProjectUpdateWithoutPipelinesInput = {
   metrics?: Prisma.MetricUpdateManyWithoutProjectNestedInput
   ragDocuments?: Prisma.RagDocumentUpdateManyWithoutProjectNestedInput
   chatSessions?: Prisma.ChatSessionUpdateManyWithoutProjectNestedInput
+  repoAnalyses?: Prisma.RepoAnalysisUpdateManyWithoutProjectNestedInput
 }
 
 export type ProjectUncheckedUpdateWithoutPipelinesInput = {
@@ -984,6 +1012,7 @@ export type ProjectUncheckedUpdateWithoutPipelinesInput = {
   metrics?: Prisma.MetricUncheckedUpdateManyWithoutProjectNestedInput
   ragDocuments?: Prisma.RagDocumentUncheckedUpdateManyWithoutProjectNestedInput
   chatSessions?: Prisma.ChatSessionUncheckedUpdateManyWithoutProjectNestedInput
+  repoAnalyses?: Prisma.RepoAnalysisUncheckedUpdateManyWithoutProjectNestedInput
 }
 
 export type ProjectCreateWithoutDeploymentsInput = {
@@ -1005,6 +1034,7 @@ export type ProjectCreateWithoutDeploymentsInput = {
   metrics?: Prisma.MetricCreateNestedManyWithoutProjectInput
   ragDocuments?: Prisma.RagDocumentCreateNestedManyWithoutProjectInput
   chatSessions?: Prisma.ChatSessionCreateNestedManyWithoutProjectInput
+  repoAnalyses?: Prisma.RepoAnalysisCreateNestedManyWithoutProjectInput
 }
 
 export type ProjectUncheckedCreateWithoutDeploymentsInput = {
@@ -1026,6 +1056,7 @@ export type ProjectUncheckedCreateWithoutDeploymentsInput = {
   metrics?: Prisma.MetricUncheckedCreateNestedManyWithoutProjectInput
   ragDocuments?: Prisma.RagDocumentUncheckedCreateNestedManyWithoutProjectInput
   chatSessions?: Prisma.ChatSessionUncheckedCreateNestedManyWithoutProjectInput
+  repoAnalyses?: Prisma.RepoAnalysisUncheckedCreateNestedManyWithoutProjectInput
 }
 
 export type ProjectCreateOrConnectWithoutDeploymentsInput = {
@@ -1063,6 +1094,7 @@ export type ProjectUpdateWithoutDeploymentsInput = {
   metrics?: Prisma.MetricUpdateManyWithoutProjectNestedInput
   ragDocuments?: Prisma.RagDocumentUpdateManyWithoutProjectNestedInput
   chatSessions?: Prisma.ChatSessionUpdateManyWithoutProjectNestedInput
+  repoAnalyses?: Prisma.RepoAnalysisUpdateManyWithoutProjectNestedInput
 }
 
 export type ProjectUncheckedUpdateWithoutDeploymentsInput = {
@@ -1084,6 +1116,7 @@ export type ProjectUncheckedUpdateWithoutDeploymentsInput = {
   metrics?: Prisma.MetricUncheckedUpdateManyWithoutProjectNestedInput
   ragDocuments?: Prisma.RagDocumentUncheckedUpdateManyWithoutProjectNestedInput
   chatSessions?: Prisma.ChatSessionUncheckedUpdateManyWithoutProjectNestedInput
+  repoAnalyses?: Prisma.RepoAnalysisUncheckedUpdateManyWithoutProjectNestedInput
 }
 
 export type ProjectCreateWithoutSecretsInput = {
@@ -1105,6 +1138,7 @@ export type ProjectCreateWithoutSecretsInput = {
   metrics?: Prisma.MetricCreateNestedManyWithoutProjectInput
   ragDocuments?: Prisma.RagDocumentCreateNestedManyWithoutProjectInput
   chatSessions?: Prisma.ChatSessionCreateNestedManyWithoutProjectInput
+  repoAnalyses?: Prisma.RepoAnalysisCreateNestedManyWithoutProjectInput
 }
 
 export type ProjectUncheckedCreateWithoutSecretsInput = {
@@ -1126,6 +1160,7 @@ export type ProjectUncheckedCreateWithoutSecretsInput = {
   metrics?: Prisma.MetricUncheckedCreateNestedManyWithoutProjectInput
   ragDocuments?: Prisma.RagDocumentUncheckedCreateNestedManyWithoutProjectInput
   chatSessions?: Prisma.ChatSessionUncheckedCreateNestedManyWithoutProjectInput
+  repoAnalyses?: Prisma.RepoAnalysisUncheckedCreateNestedManyWithoutProjectInput
 }
 
 export type ProjectCreateOrConnectWithoutSecretsInput = {
@@ -1163,6 +1198,7 @@ export type ProjectUpdateWithoutSecretsInput = {
   metrics?: Prisma.MetricUpdateManyWithoutProjectNestedInput
   ragDocuments?: Prisma.RagDocumentUpdateManyWithoutProjectNestedInput
   chatSessions?: Prisma.ChatSessionUpdateManyWithoutProjectNestedInput
+  repoAnalyses?: Prisma.RepoAnalysisUpdateManyWithoutProjectNestedInput
 }
 
 export type ProjectUncheckedUpdateWithoutSecretsInput = {
@@ -1184,6 +1220,7 @@ export type ProjectUncheckedUpdateWithoutSecretsInput = {
   metrics?: Prisma.MetricUncheckedUpdateManyWithoutProjectNestedInput
   ragDocuments?: Prisma.RagDocumentUncheckedUpdateManyWithoutProjectNestedInput
   chatSessions?: Prisma.ChatSessionUncheckedUpdateManyWithoutProjectNestedInput
+  repoAnalyses?: Prisma.RepoAnalysisUncheckedUpdateManyWithoutProjectNestedInput
 }
 
 export type ProjectCreateWithoutMetricsInput = {
@@ -1205,6 +1242,7 @@ export type ProjectCreateWithoutMetricsInput = {
   secrets?: Prisma.SecretCreateNestedManyWithoutProjectInput
   ragDocuments?: Prisma.RagDocumentCreateNestedManyWithoutProjectInput
   chatSessions?: Prisma.ChatSessionCreateNestedManyWithoutProjectInput
+  repoAnalyses?: Prisma.RepoAnalysisCreateNestedManyWithoutProjectInput
 }
 
 export type ProjectUncheckedCreateWithoutMetricsInput = {
@@ -1226,6 +1264,7 @@ export type ProjectUncheckedCreateWithoutMetricsInput = {
   secrets?: Prisma.SecretUncheckedCreateNestedManyWithoutProjectInput
   ragDocuments?: Prisma.RagDocumentUncheckedCreateNestedManyWithoutProjectInput
   chatSessions?: Prisma.ChatSessionUncheckedCreateNestedManyWithoutProjectInput
+  repoAnalyses?: Prisma.RepoAnalysisUncheckedCreateNestedManyWithoutProjectInput
 }
 
 export type ProjectCreateOrConnectWithoutMetricsInput = {
@@ -1263,6 +1302,7 @@ export type ProjectUpdateWithoutMetricsInput = {
   secrets?: Prisma.SecretUpdateManyWithoutProjectNestedInput
   ragDocuments?: Prisma.RagDocumentUpdateManyWithoutProjectNestedInput
   chatSessions?: Prisma.ChatSessionUpdateManyWithoutProjectNestedInput
+  repoAnalyses?: Prisma.RepoAnalysisUpdateManyWithoutProjectNestedInput
 }
 
 export type ProjectUncheckedUpdateWithoutMetricsInput = {
@@ -1284,6 +1324,7 @@ export type ProjectUncheckedUpdateWithoutMetricsInput = {
   secrets?: Prisma.SecretUncheckedUpdateManyWithoutProjectNestedInput
   ragDocuments?: Prisma.RagDocumentUncheckedUpdateManyWithoutProjectNestedInput
   chatSessions?: Prisma.ChatSessionUncheckedUpdateManyWithoutProjectNestedInput
+  repoAnalyses?: Prisma.RepoAnalysisUncheckedUpdateManyWithoutProjectNestedInput
 }
 
 export type ProjectCreateWithoutRagDocumentsInput = {
@@ -1305,6 +1346,7 @@ export type ProjectCreateWithoutRagDocumentsInput = {
   secrets?: Prisma.SecretCreateNestedManyWithoutProjectInput
   metrics?: Prisma.MetricCreateNestedManyWithoutProjectInput
   chatSessions?: Prisma.ChatSessionCreateNestedManyWithoutProjectInput
+  repoAnalyses?: Prisma.RepoAnalysisCreateNestedManyWithoutProjectInput
 }
 
 export type ProjectUncheckedCreateWithoutRagDocumentsInput = {
@@ -1326,6 +1368,7 @@ export type ProjectUncheckedCreateWithoutRagDocumentsInput = {
   secrets?: Prisma.SecretUncheckedCreateNestedManyWithoutProjectInput
   metrics?: Prisma.MetricUncheckedCreateNestedManyWithoutProjectInput
   chatSessions?: Prisma.ChatSessionUncheckedCreateNestedManyWithoutProjectInput
+  repoAnalyses?: Prisma.RepoAnalysisUncheckedCreateNestedManyWithoutProjectInput
 }
 
 export type ProjectCreateOrConnectWithoutRagDocumentsInput = {
@@ -1363,6 +1406,7 @@ export type ProjectUpdateWithoutRagDocumentsInput = {
   secrets?: Prisma.SecretUpdateManyWithoutProjectNestedInput
   metrics?: Prisma.MetricUpdateManyWithoutProjectNestedInput
   chatSessions?: Prisma.ChatSessionUpdateManyWithoutProjectNestedInput
+  repoAnalyses?: Prisma.RepoAnalysisUpdateManyWithoutProjectNestedInput
 }
 
 export type ProjectUncheckedUpdateWithoutRagDocumentsInput = {
@@ -1383,6 +1427,111 @@ export type ProjectUncheckedUpdateWithoutRagDocumentsInput = {
   pipelines?: Prisma.PipelineUncheckedUpdateManyWithoutProjectNestedInput
   secrets?: Prisma.SecretUncheckedUpdateManyWithoutProjectNestedInput
   metrics?: Prisma.MetricUncheckedUpdateManyWithoutProjectNestedInput
+  chatSessions?: Prisma.ChatSessionUncheckedUpdateManyWithoutProjectNestedInput
+  repoAnalyses?: Prisma.RepoAnalysisUncheckedUpdateManyWithoutProjectNestedInput
+}
+
+export type ProjectCreateWithoutRepoAnalysesInput = {
+  id?: string
+  name: string
+  slug: string
+  repoUrl: string
+  framework?: string | null
+  buildCommand?: string | null
+  startCommand?: string | null
+  deploymentType?: $Enums.DeploymentType
+  status?: $Enums.ProjectStatus
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  organization: Prisma.OrganizationCreateNestedOneWithoutProjectsInput
+  githubRepo?: Prisma.GitHubRepositoryCreateNestedOneWithoutProjectsInput
+  deployments?: Prisma.DeploymentCreateNestedManyWithoutProjectInput
+  pipelines?: Prisma.PipelineCreateNestedManyWithoutProjectInput
+  secrets?: Prisma.SecretCreateNestedManyWithoutProjectInput
+  metrics?: Prisma.MetricCreateNestedManyWithoutProjectInput
+  ragDocuments?: Prisma.RagDocumentCreateNestedManyWithoutProjectInput
+  chatSessions?: Prisma.ChatSessionCreateNestedManyWithoutProjectInput
+}
+
+export type ProjectUncheckedCreateWithoutRepoAnalysesInput = {
+  id?: string
+  name: string
+  slug: string
+  organizationId: string
+  githubRepoId?: string | null
+  repoUrl: string
+  framework?: string | null
+  buildCommand?: string | null
+  startCommand?: string | null
+  deploymentType?: $Enums.DeploymentType
+  status?: $Enums.ProjectStatus
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  deployments?: Prisma.DeploymentUncheckedCreateNestedManyWithoutProjectInput
+  pipelines?: Prisma.PipelineUncheckedCreateNestedManyWithoutProjectInput
+  secrets?: Prisma.SecretUncheckedCreateNestedManyWithoutProjectInput
+  metrics?: Prisma.MetricUncheckedCreateNestedManyWithoutProjectInput
+  ragDocuments?: Prisma.RagDocumentUncheckedCreateNestedManyWithoutProjectInput
+  chatSessions?: Prisma.ChatSessionUncheckedCreateNestedManyWithoutProjectInput
+}
+
+export type ProjectCreateOrConnectWithoutRepoAnalysesInput = {
+  where: Prisma.ProjectWhereUniqueInput
+  create: Prisma.XOR<Prisma.ProjectCreateWithoutRepoAnalysesInput, Prisma.ProjectUncheckedCreateWithoutRepoAnalysesInput>
+}
+
+export type ProjectUpsertWithoutRepoAnalysesInput = {
+  update: Prisma.XOR<Prisma.ProjectUpdateWithoutRepoAnalysesInput, Prisma.ProjectUncheckedUpdateWithoutRepoAnalysesInput>
+  create: Prisma.XOR<Prisma.ProjectCreateWithoutRepoAnalysesInput, Prisma.ProjectUncheckedCreateWithoutRepoAnalysesInput>
+  where?: Prisma.ProjectWhereInput
+}
+
+export type ProjectUpdateToOneWithWhereWithoutRepoAnalysesInput = {
+  where?: Prisma.ProjectWhereInput
+  data: Prisma.XOR<Prisma.ProjectUpdateWithoutRepoAnalysesInput, Prisma.ProjectUncheckedUpdateWithoutRepoAnalysesInput>
+}
+
+export type ProjectUpdateWithoutRepoAnalysesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  repoUrl?: Prisma.StringFieldUpdateOperationsInput | string
+  framework?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  buildCommand?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  startCommand?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deploymentType?: Prisma.EnumDeploymentTypeFieldUpdateOperationsInput | $Enums.DeploymentType
+  status?: Prisma.EnumProjectStatusFieldUpdateOperationsInput | $Enums.ProjectStatus
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  organization?: Prisma.OrganizationUpdateOneRequiredWithoutProjectsNestedInput
+  githubRepo?: Prisma.GitHubRepositoryUpdateOneWithoutProjectsNestedInput
+  deployments?: Prisma.DeploymentUpdateManyWithoutProjectNestedInput
+  pipelines?: Prisma.PipelineUpdateManyWithoutProjectNestedInput
+  secrets?: Prisma.SecretUpdateManyWithoutProjectNestedInput
+  metrics?: Prisma.MetricUpdateManyWithoutProjectNestedInput
+  ragDocuments?: Prisma.RagDocumentUpdateManyWithoutProjectNestedInput
+  chatSessions?: Prisma.ChatSessionUpdateManyWithoutProjectNestedInput
+}
+
+export type ProjectUncheckedUpdateWithoutRepoAnalysesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  organizationId?: Prisma.StringFieldUpdateOperationsInput | string
+  githubRepoId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  repoUrl?: Prisma.StringFieldUpdateOperationsInput | string
+  framework?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  buildCommand?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  startCommand?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deploymentType?: Prisma.EnumDeploymentTypeFieldUpdateOperationsInput | $Enums.DeploymentType
+  status?: Prisma.EnumProjectStatusFieldUpdateOperationsInput | $Enums.ProjectStatus
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  deployments?: Prisma.DeploymentUncheckedUpdateManyWithoutProjectNestedInput
+  pipelines?: Prisma.PipelineUncheckedUpdateManyWithoutProjectNestedInput
+  secrets?: Prisma.SecretUncheckedUpdateManyWithoutProjectNestedInput
+  metrics?: Prisma.MetricUncheckedUpdateManyWithoutProjectNestedInput
+  ragDocuments?: Prisma.RagDocumentUncheckedUpdateManyWithoutProjectNestedInput
   chatSessions?: Prisma.ChatSessionUncheckedUpdateManyWithoutProjectNestedInput
 }
 
@@ -1405,6 +1554,7 @@ export type ProjectCreateWithoutChatSessionsInput = {
   secrets?: Prisma.SecretCreateNestedManyWithoutProjectInput
   metrics?: Prisma.MetricCreateNestedManyWithoutProjectInput
   ragDocuments?: Prisma.RagDocumentCreateNestedManyWithoutProjectInput
+  repoAnalyses?: Prisma.RepoAnalysisCreateNestedManyWithoutProjectInput
 }
 
 export type ProjectUncheckedCreateWithoutChatSessionsInput = {
@@ -1426,6 +1576,7 @@ export type ProjectUncheckedCreateWithoutChatSessionsInput = {
   secrets?: Prisma.SecretUncheckedCreateNestedManyWithoutProjectInput
   metrics?: Prisma.MetricUncheckedCreateNestedManyWithoutProjectInput
   ragDocuments?: Prisma.RagDocumentUncheckedCreateNestedManyWithoutProjectInput
+  repoAnalyses?: Prisma.RepoAnalysisUncheckedCreateNestedManyWithoutProjectInput
 }
 
 export type ProjectCreateOrConnectWithoutChatSessionsInput = {
@@ -1463,6 +1614,7 @@ export type ProjectUpdateWithoutChatSessionsInput = {
   secrets?: Prisma.SecretUpdateManyWithoutProjectNestedInput
   metrics?: Prisma.MetricUpdateManyWithoutProjectNestedInput
   ragDocuments?: Prisma.RagDocumentUpdateManyWithoutProjectNestedInput
+  repoAnalyses?: Prisma.RepoAnalysisUpdateManyWithoutProjectNestedInput
 }
 
 export type ProjectUncheckedUpdateWithoutChatSessionsInput = {
@@ -1484,6 +1636,7 @@ export type ProjectUncheckedUpdateWithoutChatSessionsInput = {
   secrets?: Prisma.SecretUncheckedUpdateManyWithoutProjectNestedInput
   metrics?: Prisma.MetricUncheckedUpdateManyWithoutProjectNestedInput
   ragDocuments?: Prisma.RagDocumentUncheckedUpdateManyWithoutProjectNestedInput
+  repoAnalyses?: Prisma.RepoAnalysisUncheckedUpdateManyWithoutProjectNestedInput
 }
 
 export type ProjectCreateManyOrganizationInput = {
@@ -1520,6 +1673,7 @@ export type ProjectUpdateWithoutOrganizationInput = {
   metrics?: Prisma.MetricUpdateManyWithoutProjectNestedInput
   ragDocuments?: Prisma.RagDocumentUpdateManyWithoutProjectNestedInput
   chatSessions?: Prisma.ChatSessionUpdateManyWithoutProjectNestedInput
+  repoAnalyses?: Prisma.RepoAnalysisUpdateManyWithoutProjectNestedInput
 }
 
 export type ProjectUncheckedUpdateWithoutOrganizationInput = {
@@ -1541,6 +1695,7 @@ export type ProjectUncheckedUpdateWithoutOrganizationInput = {
   metrics?: Prisma.MetricUncheckedUpdateManyWithoutProjectNestedInput
   ragDocuments?: Prisma.RagDocumentUncheckedUpdateManyWithoutProjectNestedInput
   chatSessions?: Prisma.ChatSessionUncheckedUpdateManyWithoutProjectNestedInput
+  repoAnalyses?: Prisma.RepoAnalysisUncheckedUpdateManyWithoutProjectNestedInput
 }
 
 export type ProjectUncheckedUpdateManyWithoutOrganizationInput = {
@@ -1592,6 +1747,7 @@ export type ProjectUpdateWithoutGithubRepoInput = {
   metrics?: Prisma.MetricUpdateManyWithoutProjectNestedInput
   ragDocuments?: Prisma.RagDocumentUpdateManyWithoutProjectNestedInput
   chatSessions?: Prisma.ChatSessionUpdateManyWithoutProjectNestedInput
+  repoAnalyses?: Prisma.RepoAnalysisUpdateManyWithoutProjectNestedInput
 }
 
 export type ProjectUncheckedUpdateWithoutGithubRepoInput = {
@@ -1613,6 +1769,7 @@ export type ProjectUncheckedUpdateWithoutGithubRepoInput = {
   metrics?: Prisma.MetricUncheckedUpdateManyWithoutProjectNestedInput
   ragDocuments?: Prisma.RagDocumentUncheckedUpdateManyWithoutProjectNestedInput
   chatSessions?: Prisma.ChatSessionUncheckedUpdateManyWithoutProjectNestedInput
+  repoAnalyses?: Prisma.RepoAnalysisUncheckedUpdateManyWithoutProjectNestedInput
 }
 
 export type ProjectUncheckedUpdateManyWithoutGithubRepoInput = {
@@ -1642,6 +1799,7 @@ export type ProjectCountOutputType = {
   metrics: number
   ragDocuments: number
   chatSessions: number
+  repoAnalyses: number
 }
 
 export type ProjectCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1651,6 +1809,7 @@ export type ProjectCountOutputTypeSelect<ExtArgs extends runtime.Types.Extension
   metrics?: boolean | ProjectCountOutputTypeCountMetricsArgs
   ragDocuments?: boolean | ProjectCountOutputTypeCountRagDocumentsArgs
   chatSessions?: boolean | ProjectCountOutputTypeCountChatSessionsArgs
+  repoAnalyses?: boolean | ProjectCountOutputTypeCountRepoAnalysesArgs
 }
 
 /**
@@ -1705,6 +1864,13 @@ export type ProjectCountOutputTypeCountChatSessionsArgs<ExtArgs extends runtime.
   where?: Prisma.ChatSessionWhereInput
 }
 
+/**
+ * ProjectCountOutputType without action
+ */
+export type ProjectCountOutputTypeCountRepoAnalysesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.RepoAnalysisWhereInput
+}
+
 
 export type ProjectSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -1728,6 +1894,7 @@ export type ProjectSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   metrics?: boolean | Prisma.Project$metricsArgs<ExtArgs>
   ragDocuments?: boolean | Prisma.Project$ragDocumentsArgs<ExtArgs>
   chatSessions?: boolean | Prisma.Project$chatSessionsArgs<ExtArgs>
+  repoAnalyses?: boolean | Prisma.Project$repoAnalysesArgs<ExtArgs>
   _count?: boolean | Prisma.ProjectCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["project"]>
 
@@ -1793,6 +1960,7 @@ export type ProjectInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs
   metrics?: boolean | Prisma.Project$metricsArgs<ExtArgs>
   ragDocuments?: boolean | Prisma.Project$ragDocumentsArgs<ExtArgs>
   chatSessions?: boolean | Prisma.Project$chatSessionsArgs<ExtArgs>
+  repoAnalyses?: boolean | Prisma.Project$repoAnalysesArgs<ExtArgs>
   _count?: boolean | Prisma.ProjectCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type ProjectIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1815,6 +1983,7 @@ export type $ProjectPayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     metrics: Prisma.$MetricPayload<ExtArgs>[]
     ragDocuments: Prisma.$RagDocumentPayload<ExtArgs>[]
     chatSessions: Prisma.$ChatSessionPayload<ExtArgs>[]
+    repoAnalyses: Prisma.$RepoAnalysisPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -2232,6 +2401,7 @@ export interface Prisma__ProjectClient<T, Null = never, ExtArgs extends runtime.
   metrics<T extends Prisma.Project$metricsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Project$metricsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$MetricPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   ragDocuments<T extends Prisma.Project$ragDocumentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Project$ragDocumentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$RagDocumentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   chatSessions<T extends Prisma.Project$chatSessionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Project$chatSessionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ChatSessionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  repoAnalyses<T extends Prisma.Project$repoAnalysesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Project$repoAnalysesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$RepoAnalysisPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -2830,6 +3000,30 @@ export type Project$chatSessionsArgs<ExtArgs extends runtime.Types.Extensions.In
   take?: number
   skip?: number
   distinct?: Prisma.ChatSessionScalarFieldEnum | Prisma.ChatSessionScalarFieldEnum[]
+}
+
+/**
+ * Project.repoAnalyses
+ */
+export type Project$repoAnalysesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the RepoAnalysis
+   */
+  select?: Prisma.RepoAnalysisSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the RepoAnalysis
+   */
+  omit?: Prisma.RepoAnalysisOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.RepoAnalysisInclude<ExtArgs> | null
+  where?: Prisma.RepoAnalysisWhereInput
+  orderBy?: Prisma.RepoAnalysisOrderByWithRelationInput | Prisma.RepoAnalysisOrderByWithRelationInput[]
+  cursor?: Prisma.RepoAnalysisWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.RepoAnalysisScalarFieldEnum | Prisma.RepoAnalysisScalarFieldEnum[]
 }
 
 /**

@@ -180,6 +180,7 @@ model Project {
   metrics        Metric[]
   ragDocuments   RagDocument[]
   chatSessions   ChatSession[]
+  repoAnalyses   RepoAnalysis[]
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
@@ -332,6 +333,55 @@ enum RagType {
   MONITORING_INSIGHT
   CHAT_HISTORY
   ERROR_PATTERN
+}
+
+// ==================== REPOSITORY ANALYSIS ====================
+
+model RepoAnalysis {
+  id                 String   @id @default(cuid())
+  
+  // Project Association
+  projectId          String   @map("project_id")
+  project            Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  // Repository Information
+  repositoryName     String   @map("repository_name")
+  repositoryFullName String   @map("repository_full_name")
+  owner              String
+  branch             String?  @default("main")
+  
+  // Analysis Results
+  framework          String?
+  language           String?
+  buildTool          String?  @map("build_tool")
+  packageManager     String?  @map("package_manager")
+  hasDockerfile      Boolean  @default(false) @map("has_dockerfile")
+  hasCIConfig        Boolean  @default(false) @map("has_ci_config")
+  
+  // Detailed Metadata (JSON)
+  dependencies       Json?    // { production: {...}, dev: {...} }
+  structure          Json?    // { directories: [...], mainFiles: [...], ... }
+  infrastructure     Json?    // { docker: {...}, kubernetes: {...}, cicd: {...} }
+  environment        Json?    // { requiredVars: [...], detectedVars: [...] }
+  deployment         Json?    // { port: 3000, healthCheck: "/health", ... }
+  
+  // AI-Generated Insights
+  aiSummary          String?  @db.Text @map("ai_summary")
+  codeQuality        Float?   @map("code_quality")
+  
+  // Status Tracking
+  status             String   @default("pending") // pending, analyzing, completed, failed
+  error              String?  @db.Text
+  
+  // Timestamps
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  completedAt        DateTime? @map("completed_at")
+  
+  @@index([projectId])
+  @@index([repositoryFullName])
+  @@index([status])
+  @@map("repo_analyses")
 }
 
 // ==================== CHAT & AI INTERACTIONS ====================

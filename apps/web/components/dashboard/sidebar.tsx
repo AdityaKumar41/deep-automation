@@ -119,23 +119,7 @@ export function DashboardSidebar() {
           </Button>
         </div>
 
-        {/* Top Actions - Theme & Notifications */}
-        <div
-          className={cn(
-            "border-b p-3 flex gap-2",
-            isCollapsed ? "flex-col items-center" : "justify-end"
-          )}
-        >
-          <ThemeToggleButton />
-          <Button variant="ghost" size="icon" className="relative h-9 w-9">
-            <Bell className="h-4 w-4" />
-            {notifications > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-destructive-foreground">
-                {notifications}
-              </span>
-            )}
-          </Button>
-        </div>
+
 
         {/* Organization Selector */}
         {!isCollapsed && (

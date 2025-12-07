@@ -103,6 +103,11 @@ export type Metric = Prisma.MetricModel
  */
 export type RagDocument = Prisma.RagDocumentModel
 /**
+ * Model RepoAnalysis
+ * 
+ */
+export type RepoAnalysis = Prisma.RepoAnalysisModel
+/**
  * Model ChatSession
  * 
  */

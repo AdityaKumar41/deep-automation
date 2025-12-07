@@ -73,16 +73,36 @@ fastify.post<{
       },
     });
 
-    // Build image
-    const buildResult = await buildImage({
-      deploymentId,
-      projectId,
-      repoUrl,
-      branch,
-      commitSha,
-      dockerfile,
-      envVars,
-    });
+    // Build image with real-time log streaming
+    const buildResult = await buildImage(
+      {
+        deploymentId,
+        projectId,
+        repoUrl,
+        branch,
+        commitSha,
+        dockerfile,
+        envVars,
+      },
+      async (log: string) => {
+        // Stream logs to database in real-time
+        try {
+          const current = await prisma.deployment.findUnique({
+            where: { id: deploymentId },
+            select: { buildLogs: true },
+          });
+          
+          await prisma.deployment.update({
+            where: { id: deploymentId },
+            data: {
+              buildLogs: (current?.buildLogs || '') + log,
+            },
+          });
+        } catch (error) {
+          fastify.log.error({ err: error }, 'Failed to update build logs');
+        }
+      }
+    );
 
     if (!buildResult.success) {
       await prisma.deployment.update({

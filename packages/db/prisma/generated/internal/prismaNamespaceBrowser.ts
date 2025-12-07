@@ -64,6 +64,7 @@ export const ModelName = {
   Secret: 'Secret',
   Metric: 'Metric',
   RagDocument: 'RagDocument',
+  RepoAnalysis: 'RepoAnalysis',
   ChatSession: 'ChatSession',
   Message: 'Message'
 } as const
@@ -277,6 +278,36 @@ export const RagDocumentScalarFieldEnum = {
 } as const
 
 export type RagDocumentScalarFieldEnum = (typeof RagDocumentScalarFieldEnum)[keyof typeof RagDocumentScalarFieldEnum]
+
+
+export const RepoAnalysisScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  repositoryName: 'repositoryName',
+  repositoryFullName: 'repositoryFullName',
+  owner: 'owner',
+  branch: 'branch',
+  framework: 'framework',
+  language: 'language',
+  buildTool: 'buildTool',
+  packageManager: 'packageManager',
+  hasDockerfile: 'hasDockerfile',
+  hasCIConfig: 'hasCIConfig',
+  dependencies: 'dependencies',
+  structure: 'structure',
+  infrastructure: 'infrastructure',
+  environment: 'environment',
+  deployment: 'deployment',
+  aiSummary: 'aiSummary',
+  codeQuality: 'codeQuality',
+  status: 'status',
+  error: 'error',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  completedAt: 'completedAt'
+} as const
+
+export type RepoAnalysisScalarFieldEnum = (typeof RepoAnalysisScalarFieldEnum)[keyof typeof RepoAnalysisScalarFieldEnum]
 
 
 export const ChatSessionScalarFieldEnum = {

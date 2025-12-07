@@ -151,131 +151,176 @@ export const prepareDeployment = inngest.createFunction(
 );
 
 /**
- * Execute Deployment (Simulated Runner)
- * Listens to deployment.queued and simulates execution
+ * Execute deployment - calls runner service with repo analysis
  */
 export const executeDeployment = inngest.createFunction(
   { id: "execute-deployment", name: "Execute Deployment" },
   { event: "deployment.queued" },
   async ({ event, step }: any) => {
-    const { projectId, plan, workflowFiles } = event.data;
+    const { deploymentId, projectId } = event.data;
 
-    // 1. Create Deployment Record
-    const deployment = await step.run("create-deployment-record", async () => {
-      // Get project with organization owner
-      const project = await prisma.project.findUnique({
+    // 1. Get deployment and project details
+    const { deployment, project } = await step.run("fetch-deployment-details", async () => {
+      const dep = await prisma.deployment.findUnique({
+        where: { id: deploymentId },
+      });
+
+      const proj = await prisma.project.findUnique({
         where: { id: projectId },
         include: {
-          organization: true,
+          organization: { 
+            include: { 
+              githubInstallation: true,
+              subscription: true,
+            } 
+          },
+          repoAnalyses: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+          secrets: true,
         },
       });
 
-      if (!project) {
-        throw new Error("Project not found");
+      if (!dep || !proj) {
+        throw new Error("Deployment or project not found");
       }
 
-      // Get organization owner to set as deployedBy
-      const orgOwner = await prisma.user.findUnique({
-        where: { clerkUserId: project.organization.ownerId },
-      });
+      return { deployment: dep, project: proj };
+    });
 
-      if (!orgOwner) {
-        throw new Error("Organization owner not found");
-      }
+    // 2. Get or create repo analysis
+    const analysis = await step.run("get-repo-analysis", async () => {
+      let repoAnalysis = project.repoAnalyses[0];
 
-      return await prisma.deployment.create({
-        data: {
+      // If no analysis exists, create one
+      if (!repoAnalysis) {
+        console.log('📊 No repo analysis found, analyzing repository...');
+        const { analyzeAndStore } = await import("../services/repo-analyzer");
+        const installationId = project.organization.githubInstallation?.installationId;
+        
+        repoAnalysis = await analyzeAndStore(
           projectId,
-          version: `v${Date.now()}`,
-          status: "BUILDING",
-          deployedBy: orgOwner.id,
-          buildLogs: "Starting build...",
-          pipelineId: undefined, // Could link if we passed pipelineId
-        },
+          project.repoUrl,
+          installationId
+        );
+      }
+
+      return repoAnalysis;
+    });
+
+    // 3. Generate Dockerfile based on analysis
+    const dockerfile = await step.run("generate-dockerfile", async () => {
+      const { generateDockerfile } = await import("../services/workflow-generator");
+      
+      return generateDockerfile({
+        framework: analysis.framework || 'Node.js',
+        packageManager: analysis.packageManager || 'npm',
+        buildCommand: project.buildCommand || 'npm run build',
+        startCommand: project.startCommand || 'npm start',
+        port: (analysis.deployment as any)?.port || 3000,
+        envVars: [],
       });
     });
 
-    // 2. Simulate Build Process
-    await step.run("simulate-build", async () => {
-      await new Promise((resolve) => setTimeout(resolve, 5000));
+    // 4. Call runner service
+    const result = await step.run("execute-runner", async () => {
+      const runnerUrl = process.env.RUNNER_SERVICE_URL || 'http://localhost:3002';
+      
+      // Get project secrets
+      const { decrypt } = await import("@evolvx/shared");
+      const envVars: Record<string, string> = {};
+      
+      for (const secret of project.secrets) {
+        try {
+          envVars[secret.key] = decrypt(secret.value);
+        } catch {
+          envVars[secret.key] = secret.value;
+        }
+      }
+
+      try {
+        const response = await fetch(`${runnerUrl}/deploy`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            deploymentId,
+            projectId,
+            repoUrl: project.repoUrl,
+            branch: deployment.branch || 'main',
+            commitSha: deployment.commitSha || 'latest',
+            dockerfile,
+            envVars,
+            port: (analysis.deployment as any)?.port || 3000,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Runner service failed: ${response.statusText}`);
+        }
+
+        return await response.json();
+      } catch (error: any) {
+        console.error('❌ Runner service error:', error);
+        
+        // Update deployment as failed
+        await prisma.deployment.update({
+          where: { id: deploymentId },
+          data: {
+            status: 'FAILED',
+            errorMessage: error.message,
+            completedAt: new Date(),
+          },
+        });
+
+        throw error;
+      }
     });
 
-    // 3. Update Status (Success Mock)
-    const finalStatus = Math.random() > 0.1 ? "SUCCESS" : "FAILED"; // 90% success rate
-
-    await step.run("finalize-deployment", async () => {
-      const logs = `Build started for ${plan.framework}...\nRunning ${plan.build.steps[0].command}...\nSuccess!\nDeploying to ${plan.provider}...`;
-
-      await prisma.deployment.update({
-        where: { id: deployment.id },
-        data: {
-          status: finalStatus,
-          completedAt: new Date(),
-          buildLogs: logs,
-          errorMessage:
-            finalStatus === "FAILED" ? "Random simulation error" : null,
-          deployUrl:
-            finalStatus === "SUCCESS"
-              ? `https://${projectId}.evolvx.app`
-              : null,
-        },
-      });
-
-      // Track Build Minutes
+    // 5. Track usage
+    await step.run("track-usage", async () => {
       try {
         const durationMs = new Date().getTime() - new Date(deployment.createdAt).getTime();
         const durationMinutes = Math.ceil(durationMs / 1000 / 60);
 
-        if (durationMinutes > 0) {
-           const project = await prisma.project.findUnique({
-               where: { id: projectId },
-               include: { organization: { include: { subscription: true } } }
-           });
-           
-           const subscription = project?.organization.subscription;
-
-           if (subscription) {
-               await prisma.usage.create({
-                   data: {
-                       subscriptionId: subscription.id,
-                       metric: "BUILD_MINUTES",
-                       quantity: durationMinutes,
-                       billingPeriod: new Date().toISOString().slice(0, 7)
-                   }
-               });
-               
-               if (subscription.polarCustomerId) {
-                   await reportUsage(subscription.polarCustomerId, "BUILD_MINUTES", durationMinutes);
-               }
-           }
+        if (durationMinutes > 0 && project.organization.subscription) {
+          await prisma.usage.create({
+            data: {
+              subscriptionId: project.organization.subscription.id,
+              metric: "BUILD_MINUTES",
+              quantity: durationMinutes,
+              billingPeriod: new Date().toISOString().slice(0, 7)
+            }
+          });
+          
+          if (project.organization.subscription.polarCustomerId) {
+            await reportUsage(
+              project.organization.subscription.polarCustomerId, 
+              "BUILD_MINUTES", 
+              durationMinutes
+            );
+          }
         }
       } catch (err) {
-          console.error("Failed to track build minutes", err);
+        console.error("Failed to track build minutes", err);
       }
-
-      // Store in Qdrant for RAG
-      const { storeDeploymentLog } = await import("../services/qdrant");
-      await storeDeploymentLog({
-        deploymentId: deployment.id,
-        projectId,
-        status: finalStatus,
-        logs,
-        errorMessage:
-          finalStatus === "FAILED" ? "Random simulation error" : undefined,
-      });
     });
 
-    // 4. Emit Completed Event
+    // 6. Emit completed event
     await step.run("emit-completed", async () => {
+      const finalDeployment = await prisma.deployment.findUnique({
+        where: { id: deploymentId },
+      });
+
       await publishEvent(EventType.DEPLOYMENT_COMPLETED, {
-        deploymentId: deployment.id,
+        deploymentId,
         projectId,
-        status: finalStatus,
-        error: finalStatus === "FAILED" ? "Random simulation error" : undefined,
+        status: finalDeployment?.status || 'FAILED',
+        error: finalDeployment?.errorMessage,
       });
     });
 
-    return { success: true, deploymentId: deployment.id, status: finalStatus };
+    return { success: true, deploymentId, result };
   }
 );
 

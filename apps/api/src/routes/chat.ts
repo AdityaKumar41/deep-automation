@@ -447,37 +447,171 @@ const chatRoutes: FastifyPluginAsync = async (fastify) => {
           action: agentResponse.action?.type
         });
 
-        // Handle ANALYZE_REPO action - fetch project and run fresh analysis
+        // Handle ANALYZE_REPO action - check database first, then run fresh analysis if needed
         if (agentResponse.action?.type === 'ANALYZE_REPO' && projectId) {
-          console.log('🔄 Running fresh repository analysis...');
-          const project = await prisma.project.findUnique({
-            where: { id: projectId },
-          });
+          console.log('🔄 Fetching repository analysis...');
           
-          if (project?.repoUrl) {
-            try {
-              const { analyzeAndStore } = await import("../services/repo-analyzer");
-              const freshAnalysis = await analyzeAndStore(
-                projectId, 
-                project.repoUrl
-              );
-              // Inject fresh analysis into context
-              agentResponse.context = agentResponse.context || {};
-              agentResponse.context.repoAnalysis = {
-                framework: freshAnalysis.framework,
-                dependencies: freshAnalysis.dependencies,
-                analysis: freshAnalysis.analysis,
-              };
+          // Import analysis functions
+          const { getLatestAnalysis, isAnalysisStale, analyzeAndStore } = await import("../services/repo-analyzer");
+          
+          // Check for existing analysis in database
+          const existingAnalysis = await getLatestAnalysis(projectId);
+          
+          // Determine if we need fresh analysis
+          const needsFreshAnalysis = !existingAnalysis || isAnalysisStale(existingAnalysis);
+          
+          if (needsFreshAnalysis) {
+            console.log('🔄 Running fresh repository analysis (stale or missing)...');
+            const project = await prisma.project.findUnique({
+              where: { id: projectId },
+              include: {
+                organization: { include: { githubInstallation: true } },
+              },
+            });
+            
+            if (project?.repoUrl) {
+              try {
+                const installationId = project.organization.githubInstallation?.installationId;
+                const freshAnalysis = await analyzeAndStore(
+                  projectId,
+                  project.repoUrl,
+                  installationId
+                );
+                
+                // Inject comprehensive analysis into context
+                agentResponse.context = agentResponse.context || {};
+                agentResponse.context.repoAnalysis = {
+                  framework: freshAnalysis.framework,
+                  language: freshAnalysis.language,
+                  buildTool: freshAnalysis.buildTool,
+                  packageManager: freshAnalysis.packageManager,
+                  dependencies: freshAnalysis.dependencies,
+                  devDependencies: freshAnalysis.devDependencies,
+                  structure: freshAnalysis.structure,
+                  infrastructure: freshAnalysis.infrastructure,
+                  deployment: freshAnalysis.deployment,
+                  testing: freshAnalysis.testing,
+                  envVars: freshAnalysis.envVars,
+                  analysis: freshAnalysis.analysis,
+                };
+                agentResponse.context.project = {
+                  name: project.name,
+                  framework: freshAnalysis.framework,
+                  status: project.status,
+                  deploymentType: project.deploymentType,
+                };
+                console.log('✅ Fresh analysis complete and injected');
+              } catch (analysisError: any) {
+                console.error('❌ Fresh analysis failed:', analysisError.message);
+              }
+            }
+          } else if (existingAnalysis) {
+            // Use existing analysis from database
+            console.log('✅ Using existing analysis from database (fresh)');
+            agentResponse.context = agentResponse.context || {};
+            agentResponse.context.repoAnalysis = {
+              framework: existingAnalysis.framework,
+              language: existingAnalysis.language,
+              buildTool: existingAnalysis.buildTool,
+              packageManager: existingAnalysis.packageManager,
+              dependencies: existingAnalysis.dependencies,
+              structure: existingAnalysis.structure,
+              infrastructure: existingAnalysis.infrastructure,
+              deployment: existingAnalysis.deployment,
+              envVars: existingAnalysis.environment?.requiredVars || [],
+              analysis: existingAnalysis.aiSummary,
+            };
+            
+            const project = await prisma.project.findUnique({
+              where: { id: projectId },
+            });
+            
+            if (project) {
               agentResponse.context.project = {
                 name: project.name,
-                framework: freshAnalysis.framework,
+                framework: existingAnalysis.framework,
                 status: project.status,
                 deploymentType: project.deploymentType,
               };
-              console.log('✅ Fresh analysis complete and injected');
-            } catch (analysisError: any) {
-              console.error('❌ Fresh analysis failed:', analysisError.message);
             }
+          }
+        }
+
+        // Handle DEPLOY_PROJECT action - trigger deployment via Inngest
+        if (agentResponse.action?.type === 'DEPLOY_PROJECT' && projectId) {
+          console.log('🚀 Triggering deployment for project:', projectId);
+          
+          try {
+            // First, ensure we have repo analysis (needed for Dockerfile generation)
+            const { getLatestAnalysis, isAnalysisStale, analyzeAndStore } = await import("../services/repo-analyzer");
+            
+            let analysis = await getLatestAnalysis(projectId);
+            
+            // If no analysis or stale, run fresh analysis
+            if (!analysis || isAnalysisStale(analysis)) {
+              console.log('📊 Running repository analysis before deployment...');
+              
+              const project = await prisma.project.findUnique({
+                where: { id: projectId },
+                include: {
+                  organization: { include: { githubInstallation: true } },
+                },
+              });
+              
+              if (project?.repoUrl) {
+                const installationId = project.organization.githubInstallation?.installationId;
+                analysis = await analyzeAndStore(
+                  projectId,
+                  project.repoUrl,
+                  installationId
+                );
+                console.log('✅ Repository analyzed:', {
+                  framework: analysis.framework,
+                  language: analysis.language,
+                  buildTool: analysis.buildTool,
+                });
+              }
+            }
+
+            // Get user from database
+            const dbUser = await prisma.user.findUnique({
+              where: { clerkUserId: userId },
+            });
+
+            if (dbUser) {
+              // Create deployment record
+              const deployment = await prisma.deployment.create({
+                data: {
+                  projectId,
+                  version: `v${Date.now()}`,
+                  branch: 'main',
+                  status: 'PENDING',
+                  deployedBy: dbUser.id,
+                },
+              });
+
+              // Trigger deployment via Inngest
+              const { inngest } = await import('../inngest/client');
+              await inngest.send({
+                name: 'deployment.queued',
+                data: {
+                  deploymentId: deployment.id,
+                  projectId,
+                },
+              });
+
+              console.log('✅ Deployment triggered:', deployment.id);
+              
+              // Add deployment info to context
+              agentResponse.context = agentResponse.context || {};
+              agentResponse.context.deployment = {
+                id: deployment.id,
+                version: deployment.version,
+                status: deployment.status,
+              };
+            }
+          } catch (error: any) {
+            console.error('❌ Failed to trigger deployment:', error);
           }
         }
 
@@ -517,8 +651,34 @@ Your goal is to autonomously assist developers in achieving production excellenc
         // Add full repository analysis if available
         if (agentResponse.context?.repoAnalysis) {
           const repo = agentResponse.context.repoAnalysis;
-          systemPrompt += `\n\n**Repository Intelligence**:\nFramework: ${repo.framework}\nDependencies: ${repo.dependencies?.slice(0, 20).join(', ')}${(repo.dependencies?.length || 0) > 20 ? '...' : ''}\n\nAnalysis:\n${repo.analysis}`;
-          console.log('✅ Repo analysis injected into system prompt');
+          
+          systemPrompt += `\n\n**Repository Intelligence**:
+**Framework**: ${repo.framework || 'Unknown'}
+**Language**: ${repo.language || 'Unknown'}
+**Build Tool**: ${repo.buildTool || 'Unknown'}
+**Package Manager**: ${repo.packageManager || 'Unknown'}
+
+**Infrastructure**:
+- Docker: ${repo.infrastructure?.docker?.hasDockerfile ? '✅ Yes' : '❌ No'}${repo.infrastructure?.docker?.baseImage ? ` (${repo.infrastructure.docker.baseImage})` : ''}
+- CI/CD: ${repo.infrastructure?.cicd?.provider || '❌ None'}${repo.infrastructure?.cicd?.configPath ? ` (${repo.infrastructure.cicd.configPath})` : ''}
+- Kubernetes: ${repo.infrastructure?.kubernetes?.hasManifests ? '✅ Yes' : '❌ No'}
+
+**Deployment**:
+- Port: ${repo.deployment?.port || 'Not detected'}
+- Health Check: ${repo.deployment?.healthCheck || 'Not detected'}
+- Entry Point: ${repo.deployment?.entrypoint || 'Not detected'}
+
+**Testing**: ${repo.testing?.framework || 'Not detected'}${repo.testing?.testCommand ? ` (${repo.testing.testCommand})` : ''}
+
+**Dependencies** (${repo.dependencies ? Object.keys(repo.dependencies).length : 0} production):
+${repo.dependencies ? Object.keys(repo.dependencies).slice(0, 20).join(', ') : 'None'}${repo.dependencies && Object.keys(repo.dependencies).length > 20 ? '...' : ''}
+
+**Environment Variables** (${repo.envVars?.length || 0} detected):
+${repo.envVars?.slice(0, 10).join(', ') || 'None'}${repo.envVars && repo.envVars.length > 10 ? '...' : ''}
+
+**AI Analysis**:
+${repo.analysis}`;
+          console.log('✅ Comprehensive repo analysis injected into system prompt');
         } else {
           console.log('⚠️ No repo analysis found in agent context');
         }

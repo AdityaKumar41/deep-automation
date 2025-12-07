@@ -260,6 +260,214 @@ const deploymentRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
+  // Stream deployment logs (SSE)
+  fastify.get(
+    "/:id/logs/stream",
+    {
+      preHandler: [requireAuth, validateParams(idParamSchema)],
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+
+      // Verify access
+      const deployment = await prisma.deployment.findUnique({
+        where: { id },
+        include: {
+          project: {
+            include: {
+              organization: {
+                include: {
+                  members: {
+                    where: { clerkUserId: request.auth!.userId },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!deployment || deployment.project.organization.members.length === 0) {
+        return reply.code(404).send({
+          error: "Not Found",
+          message: "Deployment not found or access denied",
+        });
+      }
+
+      // Set up SSE
+      reply.raw.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      });
+
+      // Send existing logs first
+      const existingLogs = deployment.buildLogs || deployment.deployLogs || "";
+      if (existingLogs) {
+        const lines = existingLogs.split('\n').filter(line => line.trim());
+        for (const line of lines) {
+          const logData = {
+            log: line,
+            timestamp: new Date().toISOString(),
+            level: line.includes('ERROR') ? 'ERROR' : line.includes('WARN') ? 'WARN' : line.includes('SUCCESS') ? 'SUCCESS' : 'INFO',
+          };
+          reply.raw.write(`data: ${JSON.stringify(logData)}\n\n`);
+        }
+      }
+
+      // Poll for new logs every 2 seconds
+      const interval = setInterval(async () => {
+        try {
+          const updated = await prisma.deployment.findUnique({
+            where: { id },
+            select: { status: true, buildLogs: true, deployLogs: true },
+          });
+
+          if (!updated) {
+            clearInterval(interval);
+            reply.raw.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+            reply.raw.end();
+            return;
+          }
+
+          // Check if deployment is complete
+          if (['SUCCESS', 'FAILED', 'CANCELED'].includes(updated.status)) {
+            clearInterval(interval);
+            reply.raw.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+            reply.raw.end();
+          }
+        } catch (error) {
+          clearInterval(interval);
+          reply.raw.end();
+        }
+      }, 2000);
+
+      // Clean up on client disconnect
+      request.raw.on('close', () => {
+        clearInterval(interval);
+      });
+    }
+  );
+
+  // Simplified trigger endpoint
+  fastify.post(
+    "/trigger",
+    {
+      preHandler: [requireAuth],
+    },
+    async (request, reply) => {
+      const { projectId, branch } = request.body as any;
+
+      if (!projectId) {
+        return reply.code(400).send({
+          error: "Bad Request",
+          message: "projectId is required",
+        });
+      }
+
+      // Get user from database
+      const dbUser = await prisma.user.findUnique({
+        where: { clerkUserId: request.auth!.userId },
+      });
+
+      if (!dbUser) {
+        return reply.code(400).send({
+          error: "Bad Request",
+          message: "User not found in database",
+        });
+      }
+
+      // Get project details
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        include: {
+          organization: {
+            include: {
+              members: {
+                where: { clerkUserId: request.auth!.userId },
+              },
+              githubInstallation: true,
+            },
+          },
+          secrets: true,
+        },
+      });
+
+      if (!project || project.organization.members.length === 0) {
+        return reply.code(404).send({
+          error: "Not Found",
+          message: "Project not found or access denied",
+        });
+      }
+
+      // Create deployment record
+      const deployment = await prisma.deployment.create({
+        data: {
+          projectId,
+          version: `v${Date.now()}`,
+          branch: branch || "main",
+          status: "PENDING",
+          deployedBy: dbUser.id,
+        },
+      });
+
+      // Trigger deployment via Inngest
+      const { inngest } = await import("../inngest/client");
+      await inngest.send({
+        name: "deployment.queued",
+        data: {
+          deploymentId: deployment.id,
+          projectId,
+        },
+      });
+
+      return { 
+        deploymentId: deployment.id,
+        status: 'queued'
+      };
+    }
+  );
+
+  // Get deployments by project
+  fastify.get(
+    "/projects/:projectId/deployments",
+    {
+      preHandler: [requireAuth],
+    },
+    async (request, reply) => {
+      const { projectId } = request.params as { projectId: string };
+
+      // Verify access to project
+      const project = await prisma.project.findUnique({
+        where: { id: projectId },
+        include: {
+          organization: {
+            include: {
+              members: {
+                where: { clerkUserId: request.auth!.userId },
+              },
+            },
+          },
+        },
+      });
+
+      if (!project || project.organization.members.length === 0) {
+        return reply.code(403).send({
+          error: "Forbidden",
+          message: "Access denied to this project",
+        });
+      }
+
+      const deployments = await prisma.deployment.findMany({
+        where: { projectId },
+        orderBy: { startedAt: "desc" },
+        take: 20,
+      });
+
+      return { deployments };
+    }
+  );
+
   // Cancel deployment
   fastify.post(
     "/:id/cancel",

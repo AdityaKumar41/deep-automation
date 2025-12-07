@@ -91,10 +91,16 @@ async function detectIntent(query: string) {
 
   if (
     lowerQuery.includes('analyze') ||
+    lowerQuery.includes('analyse') ||
     lowerQuery.includes('repo') ||
     lowerQuery.includes('repository') ||
+    lowerQuery.includes('codebase') ||
+    lowerQuery.includes('code base') ||
     lowerQuery.includes('understand') ||
-    lowerQuery.includes('structure')
+    lowerQuery.includes('structure') ||
+    lowerQuery.includes('what') && (lowerQuery.includes('code') || lowerQuery.includes('files')) ||
+    lowerQuery.includes('scan') ||
+    lowerQuery.includes('inspect')
   ) {
     return 'ANALYZE';
   }
@@ -229,6 +235,14 @@ You have deep access to:
 - **Deployment History**: Past builds, logs, and failure patterns.
 - **Live Metrics**: Real-time telemetry (CPU, RAM, Latency).
 
+**IMPORTANT**: When a user asks to "analyze my codebase" or similar, you MUST trigger repository analysis. The system will automatically analyze the repository and provide you with comprehensive information about:
+- Framework and language
+- Dependencies and package manager
+- Build tools and commands
+- Infrastructure (Docker, CI/CD)
+- Environment variables
+- Testing frameworks
+
 **Core Capabilities & Behaviors**:
 1. **CI/CD Expert**:
    - If asked about CI/CD, always propose a complete, valid 'github-actions' YAML workflow specific to their framework.
@@ -281,6 +295,11 @@ Deployment Type: ${context.project.deploymentType}`;
 - If asking for a pipeline, generate a '.github/workflows/main.yml'.
 - If asking for a build config, generate a 'Dockerfile'.
 - Focus on best practices (caching, security scanning, gradual rollouts).`;
+  } else if (intent === 'ANALYZE') {
+    basePrompt += `\n\n**Task**: Repository Analysis.
+- The system will automatically analyze the repository and provide comprehensive information.
+- Use the analysis data to explain the project structure, dependencies, and configuration.
+- Provide insights about the framework, build process, and deployment setup.`;
   } else if (intent === 'TROUBLESHOOT') {
     basePrompt += `\n\n**Task**: Troubleshooting active issues.
 - Analyze the error relative to the framework (${context.project?.framework}).

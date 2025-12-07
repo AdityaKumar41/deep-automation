@@ -397,6 +397,7 @@ export const ModelName = {
   Secret: 'Secret',
   Metric: 'Metric',
   RagDocument: 'RagDocument',
+  RepoAnalysis: 'RepoAnalysis',
   ChatSession: 'ChatSession',
   Message: 'Message'
 } as const
@@ -414,7 +415,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "organization" | "member" | "gitHubInstallation" | "gitHubRepository" | "subscription" | "usage" | "project" | "pipeline" | "deployment" | "secret" | "metric" | "ragDocument" | "chatSession" | "message"
+    modelProps: "user" | "organization" | "member" | "gitHubInstallation" | "gitHubRepository" | "subscription" | "usage" | "project" | "pipeline" | "deployment" | "secret" | "metric" | "ragDocument" | "repoAnalysis" | "chatSession" | "message"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1380,6 +1381,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    RepoAnalysis: {
+      payload: Prisma.$RepoAnalysisPayload<ExtArgs>
+      fields: Prisma.RepoAnalysisFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.RepoAnalysisFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RepoAnalysisPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.RepoAnalysisFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RepoAnalysisPayload>
+        }
+        findFirst: {
+          args: Prisma.RepoAnalysisFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RepoAnalysisPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.RepoAnalysisFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RepoAnalysisPayload>
+        }
+        findMany: {
+          args: Prisma.RepoAnalysisFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RepoAnalysisPayload>[]
+        }
+        create: {
+          args: Prisma.RepoAnalysisCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RepoAnalysisPayload>
+        }
+        createMany: {
+          args: Prisma.RepoAnalysisCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.RepoAnalysisCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RepoAnalysisPayload>[]
+        }
+        delete: {
+          args: Prisma.RepoAnalysisDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RepoAnalysisPayload>
+        }
+        update: {
+          args: Prisma.RepoAnalysisUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RepoAnalysisPayload>
+        }
+        deleteMany: {
+          args: Prisma.RepoAnalysisDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.RepoAnalysisUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.RepoAnalysisUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RepoAnalysisPayload>[]
+        }
+        upsert: {
+          args: Prisma.RepoAnalysisUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RepoAnalysisPayload>
+        }
+        aggregate: {
+          args: Prisma.RepoAnalysisAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateRepoAnalysis>
+        }
+        groupBy: {
+          args: Prisma.RepoAnalysisGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RepoAnalysisGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.RepoAnalysisCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RepoAnalysisCountAggregateOutputType> | number
+        }
+      }
+    }
     ChatSession: {
       payload: Prisma.$ChatSessionPayload<ExtArgs>
       fields: Prisma.ChatSessionFieldRefs
@@ -1760,6 +1835,36 @@ export const RagDocumentScalarFieldEnum = {
 } as const
 
 export type RagDocumentScalarFieldEnum = (typeof RagDocumentScalarFieldEnum)[keyof typeof RagDocumentScalarFieldEnum]
+
+
+export const RepoAnalysisScalarFieldEnum = {
+  id: 'id',
+  projectId: 'projectId',
+  repositoryName: 'repositoryName',
+  repositoryFullName: 'repositoryFullName',
+  owner: 'owner',
+  branch: 'branch',
+  framework: 'framework',
+  language: 'language',
+  buildTool: 'buildTool',
+  packageManager: 'packageManager',
+  hasDockerfile: 'hasDockerfile',
+  hasCIConfig: 'hasCIConfig',
+  dependencies: 'dependencies',
+  structure: 'structure',
+  infrastructure: 'infrastructure',
+  environment: 'environment',
+  deployment: 'deployment',
+  aiSummary: 'aiSummary',
+  codeQuality: 'codeQuality',
+  status: 'status',
+  error: 'error',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  completedAt: 'completedAt'
+} as const
+
+export type RepoAnalysisScalarFieldEnum = (typeof RepoAnalysisScalarFieldEnum)[keyof typeof RepoAnalysisScalarFieldEnum]
 
 
 export const ChatSessionScalarFieldEnum = {
@@ -2178,6 +2283,7 @@ export type GlobalOmitConfig = {
   secret?: Prisma.SecretOmit
   metric?: Prisma.MetricOmit
   ragDocument?: Prisma.RagDocumentOmit
+  repoAnalysis?: Prisma.RepoAnalysisOmit
   chatSession?: Prisma.ChatSessionOmit
   message?: Prisma.MessageOmit
 }
