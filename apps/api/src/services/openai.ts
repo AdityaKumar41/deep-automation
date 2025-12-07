@@ -34,6 +34,10 @@ export async function chatCompletion(options: ChatCompletionOptions): Promise<{
   } = options;
 
   try {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY not configured');
+    }
+
     const result = await generateText({
       model: openai(model),
       messages,
@@ -45,9 +49,13 @@ export async function chatCompletion(options: ChatCompletionOptions): Promise<{
       finishReason: result.finishReason,
       usage: result.usage,
     };
-  } catch (error) {
-    console.error('OpenAI chat completion error:', error);
-    throw new Error('Failed to generate chat completion');
+  } catch (error: any) {
+    console.error('OpenAI chat completion error:', {
+      error: error.message,
+      model,
+      hasApiKey: !!process.env.OPENAI_API_KEY,
+    });
+    throw new Error(`Failed to generate chat completion: ${error.message || 'Unknown error'}`);
   }
 }
 

@@ -106,39 +106,26 @@ const projectRoutes: FastifyPluginAsync = async (fastify) => {
         },
       });
 
-      // Trigger repository analysis in background
+      // Trigger repository analysis via Inngest (background job)
       try {
-        const { analyzeAndStore } = await import("../services/repo-analyzer");
-        const githubInstallation = await prisma.gitHubInstallation.findUnique({
-          where: { organizationId: orgId },
+        const { inngest } = await import("../inngest/client");
+        
+        await inngest.send({
+          name: "repo/analyze.requested",
+          data: {
+            projectId: project.id,
+            repoUrl,
+          },
         });
 
-        // Run analysis asynchronously
-        analyzeAndStore(project.id, repoUrl, githubInstallation?.installationId)
-          .then(async (analysis) => {
-            // Update project with detected values
-            await prisma.project.update({
-              where: { id: project.id },
-              data: {
-                framework: analysis.framework || framework,
-                buildCommand: analysis.buildCommand || buildCommand,
-                startCommand: analysis.startCommand || startCommand,
-                status: "CONFIGURED",
-              },
-            });
-          })
-          .catch((error) => {
-            fastify.log.error({ err: error }, "Failed to analyze repository");
-            // Update status to failed
-            prisma.project.update({
-              where: { id: project.id },
-              data: { status: "FAILED" },
-            });
-          });
+        fastify.log.info(
+          { projectId: project.id },
+          "Repository analysis triggered via Inngest"
+        );
       } catch (error) {
         fastify.log.error(
           { err: error },
-          "Failed to start repository analysis"
+          "Failed to trigger repository analysis"
         );
       }
 

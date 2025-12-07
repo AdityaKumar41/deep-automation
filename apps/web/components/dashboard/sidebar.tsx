@@ -217,7 +217,7 @@ export function DashboardSidebar() {
         </nav>
 
         {/* Bottom Section - User Account */}
-        <div className="border-t p-4">
+        <div className="fixed border-t bottom-0 p-4">
           <div
             className={cn(
               "flex items-center gap-3",

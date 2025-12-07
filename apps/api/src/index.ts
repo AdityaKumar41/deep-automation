@@ -30,10 +30,9 @@ const fastify = Fastify({
 // Register plugins
 async function registerPlugins() {
   await fastify.register(helmet);
-  await fastify.register(cors, {
-    origin: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
-    credentials: true,
-  });
+await fastify.register(cors, {
+  origin: true
+});
 
   // Register Clerk authentication
 

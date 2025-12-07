@@ -45,9 +45,29 @@ export async function analyzeRepository(
   if (installationId) {
     // Use installation token for private repos
     const { createAppAuth } = await import('@octokit/auth-app');
+    const fs = await import('fs');
+    const path = await import('path');
+    
+    // Read private key from file
+    let privateKey: string;
+    const privateKeyPath = process.env.GITHUB_PRIVATE_KEY_PATH;
+    
+    if (privateKeyPath) {
+      // Read from file path
+      const fullPath = path.isAbsolute(privateKeyPath)
+        ? privateKeyPath
+        : path.join(process.cwd(), privateKeyPath);
+      privateKey = fs.readFileSync(fullPath, 'utf-8');
+    } else if (process.env.GITHUB_APP_PRIVATE_KEY) {
+      // Fallback to env var
+      privateKey = process.env.GITHUB_APP_PRIVATE_KEY.replace(/\\n/g, '\n');
+    } else {
+      throw new Error('GitHub App private key not configured. Set GITHUB_PRIVATE_KEY_PATH or GITHUB_APP_PRIVATE_KEY');
+    }
+    
     const auth = createAppAuth({
       appId: process.env.GITHUB_APP_ID!,
-      privateKey: process.env.GITHUB_APP_PRIVATE_KEY!,
+      privateKey,
     });
 
     const installationAuth = await auth({
@@ -134,22 +154,67 @@ export async function analyzeRepository(
     const buildCommand = framework ? (DEFAULT_BUILD_COMMANDS as any)[framework] : null;
     const startCommand = framework ? (DEFAULT_START_COMMANDS as any)[framework] : null;
 
-    // Generate AI analysis
-    const analysisPrompt = `Analyze this ${framework || 'unknown'} repository:
-- Dependencies: ${dependencies.join(', ')}
-- Structure: ${JSON.stringify(structure, null, 2)}
-- Package Manager: ${packageManager}
+    // Generate AI analysis (optional - don't fail if OpenAI is unavailable)
+    let aiAnalysisContent = '';
+    try {
+      // Fetch README for context
+      let readmeContent = '';
+      const readmeNames = ['README.md', 'readme.md', 'README', 'Readme.md'];
+      for (const readmeName of readmeNames) {
+        if (structure.mainFiles.includes(readmeName)) {
+          const content = await getFileContent(octokit, owner, repo, readmeName);
+          if (content) {
+            readmeContent = content.substring(0, 2000); // Limit to 2000 chars
+            break;
+          }
+        }
+      }
 
-Provide a brief summary of what this application does and any notable features.`;
+      // Build comprehensive analysis prompt
+      const analysisPrompt = `You are analyzing a GitHub repository. Provide a detailed technical analysis.
 
-    const aiAnalysis = await chatCompletion({
-      messages: [
-        { role: 'system', content: 'You are a repository analyzer. Provide concise technical analysis.' },
-        { role: 'user', content: analysisPrompt },
-      ],
-      temperature: 0.3,
-      maxTokens: 500,
-    });
+## Repository Information
+- **Framework**: ${framework || 'Unknown'}
+- **Package Manager**: ${packageManager}
+- **Build Command**: ${buildCommand || 'Not detected'}
+- **Start Command**: ${startCommand || 'Not detected'}
+
+## Directory Structure
+Directories: ${structure.directories.join(', ') || 'None'}
+Root files: ${structure.mainFiles.join(', ')}
+
+## Dependencies (${dependencies.length} total)
+${dependencies.slice(0, 20).join(', ')}${dependencies.length > 20 ? '...' : ''}
+
+## Dev Dependencies (${devDependencies.length} total)
+${devDependencies.slice(0, 10).join(', ')}${devDependencies.length > 10 ? '...' : ''}
+
+${readmeContent ? `## README Content\n${readmeContent}` : '## No README found'}
+
+## Analysis Task
+Based on the above, provide:
+1. What this application does (purpose)
+2. Key technologies and patterns used
+3. Notable features based on dependencies
+4. Potential deployment considerations
+5. Any security or configuration notes
+
+Be specific and reference actual dependencies/files you see.`;
+
+      const aiAnalysis = await chatCompletion({
+        messages: [
+          { role: 'system', content: 'You are an expert SRE and DevOps engineer analyzing repositories. Provide concise, actionable technical analysis based on the ACTUAL data provided. Reference specific dependencies, files, and patterns you observe. Never ask for more information - work with what you have.' },
+          { role: 'user', content: analysisPrompt },
+        ],
+        temperature: 0.3,
+        maxTokens: 800,
+      });
+      aiAnalysisContent = aiAnalysis.content;
+    } catch (error) {
+      console.error('AI analysis failed (non-critical):', error);
+      // Fallback to basic analysis
+      aiAnalysisContent = `${framework || 'Unknown'} application with ${dependencies.length} dependencies. Package manager: ${packageManager}. ${structure.hasDockerfile ? 'Includes Docker configuration.' : ''}`;
+    }
 
     const result: RepoAnalysisResult = {
       framework,
@@ -161,7 +226,7 @@ Provide a brief summary of what this application does and any notable features.`
       devDependencies,
       envVars,
       structure,
-      analysis: aiAnalysis.content,
+      analysis: aiAnalysisContent,
     };
 
     return result;
@@ -312,12 +377,27 @@ async function getFileContent(
 /**
  * Analyze and store repository (full workflow)
  */
-export async function analyzeAndStore(projectId: string, repoUrl: string, installationId?: number) {
+export async function analyzeAndStore(
+  projectId: string,
+  repoUrl: string,
+  installationId?: number
+): Promise<RepoAnalysisResult> {
+  console.log(`🔍 Starting analysis for project ${projectId}`);
+  console.log(`   Repository: ${repoUrl}`);
+  console.log(`   Installation ID: ${installationId || 'none'}`);
+  
   // Run analysis
   const analysis = await analyzeRepository(repoUrl, installationId);
+  
+  console.log(`✅ Analysis complete for ${projectId}:`, {
+    framework: analysis.framework,
+    dependencies: analysis.dependencies.length,
+    hasAnalysis: !!analysis.analysis,
+  });
 
   // Store in Qdrant for future RAG
-  await storeRepoAnalysis({
+  console.log(`💾 Storing analysis in Qdrant for ${projectId}...`);
+  const qdrantResult = await storeRepoAnalysis({
     projectId,
     repoUrl,
     framework: analysis.framework || 'Unknown',
@@ -325,6 +405,12 @@ export async function analyzeAndStore(projectId: string, repoUrl: string, instal
     structure: analysis.structure,
     analysis: analysis.analysis,
   });
+
+  if (qdrantResult.success) {
+    console.log(`✅ Successfully stored in Qdrant for ${projectId}`);
+  } else {
+    console.error(`❌ Failed to store in Qdrant for ${projectId}:`, qdrantResult.error);
+  }
 
   return analysis;
 }

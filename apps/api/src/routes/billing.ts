@@ -1,19 +1,18 @@
 import { FastifyPluginAsync } from 'fastify';
-import { Polar } from '@polar-sh/sdk';
+import { getPolarClient, POLAR_PRODUCT_IDS } from '../services/polar';
 import { prisma } from '@evolvx/db';
 import { PLAN_LIMITS } from '@evolvx/shared';
 import crypto from 'crypto';
 
 const billingRoutes: FastifyPluginAsync = async (fastify) => {
-  const polar = new Polar({
-    accessToken: process.env.POLAR_ACCESS_TOKEN!,
-  });
+  const polar = getPolarClient();
 
   // Create checkout session
   fastify.post('/checkout', async (request, reply) => {
-    const { organizationId, plan } = request.body as {
+    const { organizationId, plan, productId } = request.body as {
       organizationId: string;
-      plan: 'PRO' | 'TEAM';
+      plan?: 'PRO' | 'TEAM';
+      productId?: string;
     };
 
     const org = await prisma.organization.findUnique({
@@ -25,17 +24,28 @@ const billingRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.code(404).send({ error: 'Organization not found' });
     }
 
-    const priceId =
-      plan === 'PRO'
-        ? process.env.POLAR_PRICE_ID_PRO!
-        : process.env.POLAR_PRICE_ID_TEAM!;
+    let priceId = productId;
+    
+    // If plan is provided but no productId, look up the ID
+    if (!priceId && plan) {
+       priceId = plan === 'PRO'
+        ? POLAR_PRODUCT_IDS.PRO_MONTHLY!
+        : POLAR_PRODUCT_IDS.TEAM_MONTHLY!;
+    }
+
+    if (!priceId) {
+        return reply.code(400).send({ error: 'Missing plan or productId' });
+    }
+
+    // Determine plan name for success URL if possible
+    const planName = plan || (priceId === POLAR_PRODUCT_IDS.PRO_MONTHLY ? 'PRO' : 'TEAM');
 
     try {
       // Note: Polar SDK checkout.create may not support metadata in this version
       // Store organizationId mapping separately if needed
       const checkout = await polar.checkouts.create({
         productPriceId: priceId,
-        successUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing?success=true&org=${organizationId}&plan=${plan}`,
+        successUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing?success=true&org=${organizationId}&plan=${planName}`,
       });
 
       return { checkoutUrl: checkout.url };

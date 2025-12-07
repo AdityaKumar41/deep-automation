@@ -3,6 +3,7 @@ import { Polar } from "@polar-sh/sdk";
 // Initialize Polar SDK
 export const getPolarClient = () => {
     const accessToken = process.env.POLAR_ACCESS_TOKEN;
+    const server = process.env.POLAR_ENVIRONMENT as "sandbox" | "production" || "sandbox";
     
     if (!accessToken) {
         console.warn("POLAR_ACCESS_TOKEN is not set. Billing features will not work.");
@@ -10,7 +11,7 @@ export const getPolarClient = () => {
 
     return new Polar({
         accessToken: process.env.POLAR_ACCESS_TOKEN || "",
-        server: "sandbox", 
+        server,
     });
 };
 

@@ -11,10 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Github, ExternalLink, CheckCircle2, AlertCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useApiClient } from "@/lib/api";
+import { useApi } from "@/lib/api";
 
 export default function GitHubIntegrationPage() {
-  const api = useApiClient();
+  const api = useApi();
 
   const { data: repositories, isLoading } = useQuery({
     queryKey: ["github-repositories"],
@@ -96,7 +96,7 @@ export default function GitHubIntegrationPage() {
             </p>
           ) : repositories && repositories.length > 0 ? (
             <div className="space-y-3">
-              {repositories.map((repo) => (
+              {repositories.map((repo: any) => (
                 <div
                   key={repo.id}
                   className="flex items-center justify-between rounded-lg border p-3"

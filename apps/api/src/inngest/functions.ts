@@ -17,8 +17,10 @@ import { reportUsage } from "../services/polar";
 export const analyzeRepository = inngest.createFunction(
   { id: "analyze-repository", name: "Analyze Repository" },
   { event: "repo/analyze.requested" },
-  async ({ event, step }: any) => {
+  async ({ event, step, logger }: any) => {
     const { projectId, repoUrl } = event.data;
+
+    logger.info(`🔍 Starting repository analysis for project ${projectId}`);
 
     const result = await step.run("analyze-repo", async () => {
       const project = await prisma.project.findUnique({
@@ -29,12 +31,25 @@ export const analyzeRepository = inngest.createFunction(
       });
       if (!project) throw new Error("Project not found");
 
+      logger.info(`Found project: ${project.name}`);
+
       const installationId =
         project.organization.githubInstallation?.installationId;
-      return await analyzeAndStore(projectId, repoUrl, installationId);
+      
+      logger.info(`Calling analyzeAndStore with installationId: ${installationId || 'none'}`);
+      
+      const analysis = await analyzeAndStore(projectId, repoUrl, installationId);
+      
+      logger.info(`Analysis complete:`, {
+        framework: analysis.framework,
+        dependencies: analysis.dependencies.length,
+      });
+      
+      return analysis;
     });
 
     await step.run("publish-analyzed-event", async () => {
+      logger.info('Publishing repo analyzed event');
       await publishEvent(EventType.REPO_ANALYZED, {
         projectId,
         repoUrl,
@@ -44,6 +59,7 @@ export const analyzeRepository = inngest.createFunction(
     });
 
     await step.run("update-project", async () => {
+      logger.info('Updating project with analysis results');
       await prisma.project.update({
         where: { id: projectId },
         data: {
@@ -53,6 +69,7 @@ export const analyzeRepository = inngest.createFunction(
           status: "CONFIGURED",
         },
       });
+      logger.info(`✅ Project ${projectId} updated to CONFIGURED status`);
     });
 
     return { success: true, analysis: result };

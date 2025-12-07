@@ -49,21 +49,25 @@ export function OrganizationProvider({
   });
 
   // Set initial organization
-  useEffect(() => {
-    if (organizations.length > 0 && !currentOrganization) {
-      // Try to recover from local storage
+  useEffect(() =>{
+    if (organizations.length > 0) {
+      // Always try to recover from local storage first
       const savedOrgId = localStorage.getItem("currentOrganizationId");
-      const savedOrg = organizations.find((o) => o.id === savedOrgId);
-
-      if (savedOrg) {
-        setCurrentOrganization(savedOrg);
-      } else {
+      
+      if (savedOrgId) {
+        const savedOrg = organizations.find((o) => o.id === savedOrgId);
+        if (savedOrg && savedOrg.id !== currentOrganization?.id) {
+          setCurrentOrganization(savedOrg);
+        }
+      } else if (!currentOrganization) {
+        // Only set first org if no saved org and no current org
         setCurrentOrganization(organizations[0]);
+        localStorage.setItem("currentOrganizationId", organizations[0].id);
       }
     } else if (organizations.length === 0 && !isLoading) {
        setCurrentOrganization(null);
     }
-  }, [organizations, currentOrganization, isLoading]);
+  }, [organizations, isLoading]); // Remove currentOrganization from deps
 
   const setOrganization = useCallback((org: Organization) => {
     setCurrentOrganization(org);

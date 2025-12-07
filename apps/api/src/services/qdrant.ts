@@ -17,12 +17,15 @@ const VECTOR_SIZE = 3072; // text-embedding-3-large dimension
 export async function initializeCollections() {
   const collections = Object.values(QDRANT_COLLECTIONS);
 
+  console.log('🔧 Initializing Qdrant collections...');
+
   for (const collectionName of collections) {
     try {
       // Check if collection exists
       const exists = await qdrant.collectionExists(collectionName);
 
       if (!exists) {
+        console.log(`   Creating collection: ${collectionName}`);
         // Create collection
         await qdrant.createCollection(collectionName, {
           vectors: {
@@ -34,12 +37,17 @@ export async function initializeCollections() {
           },
         });
 
-        console.log(`✅ Created Qdrant collection: ${collectionName}`);
+        console.log(`   ✅ Created Qdrant collection: ${collectionName}`);
+      } else {
+        console.log(`   ℹ️  Collection exists: ${collectionName}`);
       }
-    } catch (error) {
-      console.error(`Failed to create collection ${collectionName}:`, error);
+    } catch (error: any) {
+      console.error(`   ❌ Failed to create collection ${collectionName}:`, error.message);
+      // Continue with other collections even if one fails
     }
   }
+  
+  console.log('✅ Qdrant collections initialization complete');
 }
 
 /**
@@ -55,30 +63,71 @@ export async function storeRepoAnalysis(data: {
 }) {
   const { projectId, repoUrl, framework, dependencies, structure, analysis } = data;
 
-  // Generate embedding from analysis text
-  const embedding = await generateEmbedding(analysis);
-
-  // Store in Qdrant
-  await qdrant.upsert(QDRANT_COLLECTIONS.repoAnalysis, {
-    points: [
-      {
-        id: projectId,
-        vector: embedding,
-        payload: {
-          projectId,
-          repoUrl,
-          framework,
-          dependencies,
-          structure,
-          analysis,
-          type: 'repo_analysis',
-          createdAt: new Date().toISOString(),
+  try {
+    // Ensure collection exists
+    const collectionExists = await qdrant.collectionExists(QDRANT_COLLECTIONS.repoAnalysis);
+    if (!collectionExists) {
+      console.log('Creating repo_analysis collection...');
+      await qdrant.createCollection(QDRANT_COLLECTIONS.repoAnalysis, {
+        vectors: {
+          size: VECTOR_SIZE,
+          distance: 'Cosine',
         },
-      },
-    ],
-  });
+      });
+    }
 
-  return { success: true, projectId };
+    // Generate embedding from analysis text
+    const embedding = await generateEmbedding(analysis);
+
+    // Validate embedding size
+    if (embedding.length !== VECTOR_SIZE) {
+      throw new Error(`Invalid embedding size: ${embedding.length}, expected ${VECTOR_SIZE}`);
+    }
+
+    // Generate a UUID v5 from projectId (Qdrant requires UUID or unsigned int)
+    const crypto = await import('crypto');
+    // Use a namespace UUID (can be any valid UUID, using DNS namespace as example)
+    const namespace = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+    const pointId = crypto.createHash('sha256').update(projectId).digest('hex').slice(0, 32);
+    // Format as UUID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    const uuid = `${pointId.slice(0, 8)}-${pointId.slice(8, 12)}-${pointId.slice(12, 16)}-${pointId.slice(16, 20)}-${pointId.slice(20, 32)}`;
+
+    console.log(`   Generated UUID ${uuid} for project ${projectId}`);
+
+    // Store in Qdrant
+    await qdrant.upsert(QDRANT_COLLECTIONS.repoAnalysis, {
+      wait: true,
+      points: [
+        {
+          id: uuid,
+          vector: embedding,
+          payload: {
+            projectId, // Keep original projectId in payload for searching
+            repoUrl,
+            framework: framework || 'Unknown',
+            dependencies: dependencies.slice(0, 100), // Limit array size
+            dependencyCount: dependencies.length,
+            structure: JSON.stringify(structure).slice(0, 50000), // Truncate if too large
+            analysis: analysis.slice(0, 10000), // Limit analysis text size
+            type: 'repo_analysis',
+            createdAt: new Date().toISOString(),
+          },
+        },
+      ],
+    });
+
+    console.log(`✅ Stored repo analysis in Qdrant for project ${projectId}`);
+    return { success: true, projectId };
+  } catch (error: any) {
+    console.error('Failed to store repo analysis in Qdrant:', {
+      error: error.message || error,
+      projectId,
+      hasEmbedding: !!analysis,
+      errorDetails: error.data || error.response?.data,
+    });
+    // Don't throw - allow repo analysis to complete even if Qdrant fails
+    return { success: false, error: error.message || 'Unknown error' };
+  }
 }
 
 /**
@@ -249,6 +298,16 @@ export async function searchRepoAnalysis(query: string, projectIds?: string[], l
     limit,
     filter,
   });
+
+  console.log(`🔍 Qdrant Search: coll=${QDRANT_COLLECTIONS.repoAnalysis} query="${query}" filter=${JSON.stringify(filter)} results=${results.length}`);
+  if (results.length > 0) {
+      console.log(`   Top result score: ${results[0].score}`);
+      console.log(`   Top result payload projectId: ${results[0].payload?.projectId}`);
+  } else {
+      console.log(`   ⚠️ No results found. Checking if collection exists...`);
+      const exists = await qdrant.collectionExists(QDRANT_COLLECTIONS.repoAnalysis);
+      console.log(`   Collection ${QDRANT_COLLECTIONS.repoAnalysis} exists: ${exists}`);
+  }
 
   return results.map((r) => ({
     projectId: r.payload?.projectId,

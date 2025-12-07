@@ -27,6 +27,13 @@ export async function processUserQuery(
 ): Promise<AgentResponse> {
   const { userId, organizationId, projectId, sessionId } = context;
 
+  console.log(`🤖 AI Agent processing query: "${query}"`, {
+    hasProjectId: !!projectId,
+    projectId,
+    hasSessionId: !!sessionId,
+    sessionId
+  });
+
   // Detect intent
   const intent = await detectIntent(query);
 
@@ -73,7 +80,11 @@ async function detectIntent(query: string) {
   if (
     lowerQuery.includes('deploy') ||
     lowerQuery.includes('build') ||
-    lowerQuery.includes('release')
+    lowerQuery.includes('release') ||
+    lowerQuery.includes('ci/cd') ||
+    lowerQuery.includes('pipeline') ||
+    lowerQuery.includes('action') ||
+    lowerQuery.includes('automation')
   ) {
     return 'DEPLOY';
   }
@@ -82,7 +93,8 @@ async function detectIntent(query: string) {
     lowerQuery.includes('analyze') ||
     lowerQuery.includes('repo') ||
     lowerQuery.includes('repository') ||
-    lowerQuery.includes('understand')
+    lowerQuery.includes('understand') ||
+    lowerQuery.includes('structure')
   ) {
     return 'ANALYZE';
   }
@@ -92,7 +104,10 @@ async function detectIntent(query: string) {
     lowerQuery.includes('performance') ||
     lowerQuery.includes('cpu') ||
     lowerQuery.includes('memory') ||
-    lowerQuery.includes('traffic')
+    lowerQuery.includes('traffic') ||
+    lowerQuery.includes('scale') ||
+    lowerQuery.includes('latency') ||
+    lowerQuery.includes('monitoring')
   ) {
     return 'METRICS';
   }
@@ -101,7 +116,9 @@ async function detectIntent(query: string) {
     lowerQuery.includes('error') ||
     lowerQuery.includes('fail') ||
     lowerQuery.includes('crash') ||
-    lowerQuery.includes('fix')
+    lowerQuery.includes('fix') ||
+    lowerQuery.includes('debug') ||
+    lowerQuery.includes('issue')
   ) {
     return 'TROUBLESHOOT';
   }
@@ -109,7 +126,8 @@ async function detectIntent(query: string) {
   if (
     lowerQuery.includes('how') ||
     lowerQuery.includes('what') ||
-    lowerQuery.includes('explain')
+    lowerQuery.includes('explain') ||
+    lowerQuery.includes('guide')
   ) {
     return 'EXPLAIN';
   }
@@ -174,9 +192,17 @@ async function gatherContext(query: string, context: AgentContext) {
 
   // Search repository analysis for relevant info
   if (projectId) {
+    console.log(`🔍 Searching Qdrant for project ${projectId} context...`);
     const repoResults = await searchRepoAnalysis(query, [projectId], 3);
     if (repoResults.length > 0) {
       relevantContext.repoAnalysis = repoResults[0];
+      console.log(`✅ Found repo analysis in Qdrant:`, {
+        framework: repoResults[0].framework,
+        score: repoResults[0].score,
+        hasAnalysis: !!repoResults[0].analysis,
+      });
+    } else {
+      console.log(`⚠️ No repo analysis found in Qdrant for project ${projectId}`);
     }
   }
 
@@ -195,29 +221,47 @@ async function gatherContext(query: string, context: AgentContext) {
  * Build system prompt based on intent and context
  */
 function buildSystemPrompt(intent: string, context: any): string {
-  let basePrompt = `You are Evolvx AI, an intelligent DevOps assistant. You help developers deploy, monitor, and troubleshoot their applications.
+  let basePrompt = `You are Evolvx AI, a Senior SRE and DevOps Engineer acting as a core specialized agent within the Evolvx Platform.
+Your goal is to autonomously assist developers in achieving production excellence. You do not just answer questions; you provide concrete engineering solutions.
 
-You have access to:
-- Repository analysis and code understanding
-- Deployment history and logs
-- Performance metrics and monitoring data
-- Error patterns and solutions
+You have deep access to:
+- **Repository Context**: Analyzed code structure, dependencies, and frameworks via Qdrant.
+- **Deployment History**: Past builds, logs, and failure patterns.
+- **Live Metrics**: Real-time telemetry (CPU, RAM, Latency).
 
-Be concise, helpful, and actionable. When suggesting commands or configurations, provide them in code blocks.`;
+**Core Capabilities & Behaviors**:
+1. **CI/CD Expert**:
+   - If asked about CI/CD, always propose a complete, valid 'github-actions' YAML workflow specific to their framework.
+   - Explain the steps (Lint -> Build -> Test -> Deploy).
+2. **Infrastructure-as-Code**:
+   - Provide Dockerfiles optimized for production (multi-stage builds, alpine images).
+   - Suggest Kubernetes manifests or Helm charts if scaling is mentioned.
+3. **Proactive SRE**:
+   - When looking at metrics, look for anomalies. Suggest auto-scaling rules if CPU > 70%.
+   - Suggest implementing alerts for error rate spikes.
+4. **Root Cause Analysis**:
+   - When debugging, correlate the specific error in logs with the repository code context.
+   - Suggest exact code fixes or config changes.
+
+**Tone**: Professional, Technical, authoritative but helpful using "we" (as a partner engineer).
+**Output Format**: Use Markdown. Always put code/config in code blocks with language tags (yaml, dockerfile, bash).
+
+If the user asks about the platform, "Evolvx" is the intelligent PaaS you are integrated into.`;
 
   if (context.project) {
-    basePrompt += `\n\nCurrent Project: ${context.project.name}
+    basePrompt += `\n\n**Current Context**
+Project: ${context.project.name}
 Framework: ${context.project.framework || 'Unknown'}
 Status: ${context.project.status}
 Deployment Type: ${context.project.deploymentType}`;
   }
 
   if (context.repoAnalysis) {
-    basePrompt += `\n\nRepository Analysis:\n${context.repoAnalysis.analysis}`;
+    basePrompt += `\n\n**Repository Intelligence**:\n${context.repoAnalysis.analysis}`;
   }
 
   if (context.recentDeployments && context.recentDeployments.length > 0) {
-    basePrompt += `\n\nRecent Deployments:`;
+    basePrompt += `\n\n**Recent Deployments**:`;
     context.recentDeployments.forEach((d: any) => {
       basePrompt += `\n- ${d.version}: ${d.status}`;
       if (d.error) basePrompt += ` (Error: ${d.error})`;
@@ -225,7 +269,7 @@ Deployment Type: ${context.project.deploymentType}`;
   }
 
   if (context.similarErrors && context.similarErrors.length > 0) {
-    basePrompt += `\n\nSimilar Past Errors and Solutions:`;
+    basePrompt += `\n\n**Known Error Patterns**:`;
     context.similarErrors.forEach((e: any, i: number) => {
       basePrompt += `\n${i + 1}. ${e.errorMessage}\n   Solution: ${e.solution}`;
     });
@@ -233,11 +277,18 @@ Deployment Type: ${context.project.deploymentType}`;
 
   // Intent-specific additions
   if (intent === 'DEPLOY') {
-    basePrompt += `\n\nThe user wants to deploy. Guide them through the deployment process or trigger it if they're ready.`;
+    basePrompt += `\n\n**Task**: The user is focusing on Deployment/CI/CD.
+- If asking for a pipeline, generate a '.github/workflows/main.yml'.
+- If asking for a build config, generate a 'Dockerfile'.
+- Focus on best practices (caching, security scanning, gradual rollouts).`;
   } else if (intent === 'TROUBLESHOOT') {
-    basePrompt += `\n\nThe user is experiencing an issue. Help diagnose and provide solutions.`;
+    basePrompt += `\n\n**Task**: Troubleshooting active issues.
+- Analyze the error relative to the framework (${context.project?.framework}).
+- Suggest specific commands to check logs or rollback.`;
   } else if (intent === 'METRICS') {
-    basePrompt += `\n\nThe user wants performance insights. Provide clear analysis of their metrics.`;
+    basePrompt += `\n\n**Task**: Performance Analysis.
+- Interpret the metrics. Is the app over-provisioned? Under-provisioned?
+- Suggest scaling settings (e.g., "Increase replica count to 3").`;
   }
 
   return basePrompt;
@@ -271,8 +322,8 @@ function extractAction(
     return { type: 'DEPLOY_PROJECT' };
   }
 
-  // Check if AI suggests repository analysis
-  if (intent === 'ANALYZE' && content.includes('analyze')) {
+  // Trigger repository analysis for ANALYZE intent
+  if (intent === 'ANALYZE') {
     return { type: 'ANALYZE_REPO' };
   }
 
