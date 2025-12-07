@@ -1,0 +1,372 @@
+generator client {
+  provider   = "prisma-client"
+  output     = "./generated"
+  engineType = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==================== AUTH & ORGANIZATIONS ====================
+
+model User {
+  id                 String         @id @default(cuid())
+  clerkUserId        String         @unique
+  email              String         @unique
+  firstName          String?
+  lastName           String?
+  imageUrl           String?
+  memberships        Member[]
+  ownedOrganizations Organization[] @relation("OrganizationOwner")
+  chatSessions       ChatSession[]
+  deployments        Deployment[]
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@index([clerkUserId])
+  @@index([email])
+}
+
+model Organization {
+  id                 String              @id @default(cuid())
+  name               String
+  slug               String              @unique
+  ownerId            String
+  owner              User                @relation("OrganizationOwner", fields: [ownerId], references: [clerkUserId], onDelete: Cascade)
+  clerkOrgId         String              @unique
+  members            Member[]
+  projects           Project[]
+  githubInstallation GitHubInstallation?
+  subscription       Subscription?
+  chatSessions       ChatSession[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([ownerId])
+  @@index([clerkOrgId])
+}
+
+model Member {
+  id             String       @id @default(cuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clerkUserId    String
+  email          String
+  role           MemberRole   @default(DEVELOPER)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedAt      DateTime     @default(now())
+  joinedAt       DateTime?
+
+  @@unique([organizationId, userId])
+  @@index([clerkUserId])
+  @@index([userId])
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  DEVELOPER
+  VIEWER
+}
+
+// ==================== GITHUB INTEGRATION ====================
+
+model GitHubInstallation {
+  id             String             @id @default(cuid())
+  installationId Int                @unique
+  accountId      Int
+  accountLogin   String
+  accountType    String
+  accessToken    String             @db.Text
+  refreshToken   String?            @db.Text
+  expiresAt      DateTime?
+  organizationId String             @unique
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  repositories   GitHubRepository[]
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([installationId])
+}
+
+model GitHubRepository {
+  id             String             @id @default(cuid())
+  githubRepoId   Int                @unique
+  name           String
+  fullName       String
+  private        Boolean
+  defaultBranch  String             @default("main")
+  installationId String
+  installation   GitHubInstallation @relation(fields: [installationId], references: [id], onDelete: Cascade)
+  projects       Project[]
+  createdAt      DateTime           @default(now())
+
+  @@index([installationId])
+}
+
+// ==================== BILLING & SUBSCRIPTIONS ====================
+
+model Subscription {
+  id                  String             @id @default(cuid())
+  organizationId      String             @unique
+  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  polarSubscriptionId String?            @unique
+  polarCustomerId     String?
+  plan                Plan               @default(FREE)
+  status              SubscriptionStatus @default(ACTIVE)
+  currentPeriodStart  DateTime?
+  currentPeriodEnd    DateTime?
+  cancelAtPeriodEnd   Boolean            @default(false)
+  usage               Usage[]
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+}
+
+enum Plan {
+  FREE
+  PRO
+  TEAM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  TRIALING
+  INCOMPLETE
+}
+
+model Usage {
+  id             String       @id @default(cuid())
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  metric         UsageMetric
+  quantity       Int
+  timestamp      DateTime     @default(now())
+  billingPeriod  String // YYYY-MM format
+
+  @@index([subscriptionId, billingPeriod])
+  @@index([timestamp])
+}
+
+enum UsageMetric {
+  DEPLOYMENTS
+  BUILD_MINUTES
+  STORAGE_GB
+  BANDWIDTH_GB
+}
+
+// ==================== PROJECTS ====================
+
+model Project {
+  id             String            @id @default(cuid())
+  name           String
+  slug           String
+  organizationId String
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  githubRepoId   String?
+  githubRepo     GitHubRepository? @relation(fields: [githubRepoId], references: [id], onDelete: SetNull)
+  repoUrl        String
+  framework      String? // Next.js, Node, Python, etc.
+  buildCommand   String?
+  startCommand   String?
+  deploymentType DeploymentType    @default(TRIVX_RUNNER)
+  status         ProjectStatus     @default(PENDING)
+  deployments    Deployment[]
+  pipelines      Pipeline[]
+  secrets        Secret[]
+  metrics        Metric[]
+  ragDocuments   RagDocument[]
+  chatSessions   ChatSession[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+  @@index([status])
+  @@index([githubRepoId])
+}
+
+enum DeploymentType {
+  TRIVX_RUNNER
+  GITHUB_ACTIONS
+}
+
+enum ProjectStatus {
+  PENDING
+  ANALYZING
+  CONFIGURED
+  ACTIVE
+  PAUSED
+  FAILED
+}
+
+// ==================== CI/CD & DEPLOYMENTS ====================
+
+model Pipeline {
+  id           String       @id @default(cuid())
+  projectId    String
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name         String
+  type         PipelineType
+  config       Json // Build steps, commands, etc.
+  workflowPath String? // For GitHub Actions
+  deployments  Deployment[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([projectId])
+}
+
+enum PipelineType {
+  BUILD
+  DEPLOY
+  BUILD_AND_DEPLOY
+}
+
+model Deployment {
+  id             String           @id @default(cuid())
+  projectId      String
+  project        Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  pipelineId     String?
+  pipeline       Pipeline?        @relation(fields: [pipelineId], references: [id], onDelete: SetNull)
+  version        String
+  commitSha      String?
+  branch         String?
+  status         DeploymentStatus @default(PENDING)
+  deployUrl      String?
+  buildLogs      String?          @db.Text
+  deployLogs     String?          @db.Text
+  errorMessage   String?          @db.Text
+  startedAt      DateTime         @default(now())
+  completedAt    DateTime?
+  deployedBy     String
+  deployedByUser User             @relation(fields: [deployedBy], references: [id], onDelete: Cascade)
+  metrics        Metric[]
+
+  @@index([projectId])
+  @@index([pipelineId])
+  @@index([status])
+  @@index([startedAt])
+  @@index([deployedBy])
+}
+
+enum DeploymentStatus {
+  PENDING
+  BUILDING
+  DEPLOYING
+  SUCCESS
+  FAILED
+  CANCELED
+}
+
+// ==================== SECRETS & ENV VARS ====================
+
+model Secret {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  key         String
+  value       String   @db.Text // Encrypted
+  environment String   @default("production") // "preview", "production", "development"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([projectId, key, environment])
+  @@index([projectId])
+}
+
+// ==================== MONITORING & METRICS ====================
+
+model Metric {
+  id           String      @id @default(cuid())
+  projectId    String
+  project      Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  deploymentId String?
+  deployment   Deployment? @relation(fields: [deploymentId], references: [id], onDelete: SetNull)
+  type         MetricType
+  value        Float
+  unit         String
+  timestamp    DateTime    @default(now())
+  metadata     Json?
+
+  @@index([projectId, timestamp])
+  @@index([deploymentId, timestamp])
+  @@index([type, timestamp])
+}
+
+enum MetricType {
+  CPU_USAGE
+  MEMORY_USAGE
+  NETWORK_IN
+  NETWORK_OUT
+  REQUEST_COUNT
+  RESPONSE_TIME
+  ERROR_COUNT
+  DISK_USAGE
+}
+
+// ==================== RAG & AI MEMORY ====================
+
+model RagDocument {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type      RagType
+  content   String   @db.Text
+  embedding String?  @db.Text // JSON array of floats
+  metadata  Json
+  qdrantId  String?  @unique
+  createdAt DateTime @default(now())
+
+  @@index([projectId, type])
+  @@index([qdrantId])
+}
+
+enum RagType {
+  REPO_ANALYSIS
+  BUILD_RESULT
+  DEPLOYMENT_LOG
+  MONITORING_INSIGHT
+  CHAT_HISTORY
+  ERROR_PATTERN
+}
+
+// ==================== CHAT & AI INTERACTIONS ====================
+
+model ChatSession {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId      String?
+  project        Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  messages       Message[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([projectId])
+}
+
+model Message {
+  id        String      @id @default(cuid())
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      MessageRole
+  content   String      @db.Text
+  metadata  Json?
+  createdAt DateTime    @default(now())
+
+  @@index([sessionId])
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
